@@ -1,6 +1,6 @@
 {
   "name": "lifedash",
-  "version": "3.2.3",
+  "version": "3.2.4",
   "description": "Personal Management + Financial Tracker + Gamification",
   "main": "main.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "build:dir": "electron-builder --win --dir",
     "release": "electron-builder --win --publish always",
     "pack": "npx electron-packager . LifeDash --platform=win32 --arch=x64 --out=dist-pack --overwrite --icon=assets/icon.ico",
-    "rebuild": "electron-rebuild -f -w better-sqlite3"
+    "rebuild": "electron-rebuild"
   },
   "author": "LifeDash",
   "license": "MIT",
