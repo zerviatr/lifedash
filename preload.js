@@ -38,7 +38,7 @@ contextBridge.exposeInMainWorld('api', {
     addAsset: (data) => ipcRenderer.invoke('db-add-asset', data),
     updateAsset: (id, data) => ipcRenderer.invoke('db-update-asset', id, data),
     deleteAsset: (id) => ipcRenderer.invoke('db-delete-asset', id),
-    getNetWorth: () => ipcRenderer.invoke('db-get-net-worth'),
+    getNetWorth: (rates) => ipcRenderer.invoke('db-get-net-worth', rates || {}),
     getExpensesByCategory: (month) => ipcRenderer.invoke('db-get-expenses-by-category', month),
   },
 

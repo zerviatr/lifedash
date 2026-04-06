@@ -268,6 +268,11 @@ class AppDatabase {
     try { this.db.exec('ALTER TABLE user_stats ADD COLUMN prestige_level INTEGER DEFAULT 0'); } catch {}
     try { this.db.exec('ALTER TABLE recurring_transactions ADD COLUMN is_subscription INTEGER DEFAULT 0'); } catch {}
     try { this.db.exec('ALTER TABLE recurring_transactions ADD COLUMN service_name TEXT'); } catch {}
+    // v3.2.6 — Deep Financial Analysis migrations
+    try { this.db.exec('ALTER TABLE transactions ADD COLUMN is_essential INTEGER DEFAULT 1'); } catch {}
+    try { this.db.exec('ALTER TABLE transactions ADD COLUMN payment_method TEXT DEFAULT "nakit"'); } catch {}
+    try { this.db.exec('ALTER TABLE assets ADD COLUMN currency_code TEXT DEFAULT "TRY"'); } catch {}
+    try { this.db.exec('ALTER TABLE assets ADD COLUMN last_updated TEXT'); } catch {}
 
     // Create indexes for frequently queried columns
     const indexes = [
@@ -457,8 +462,12 @@ class AppDatabase {
     if (!amount || amount <= 0) {
       throw new Error('İşlem tutarı geçersiz. (Pozitif olmalıdır)');
     }
-    const info = this.run('INSERT INTO transactions (type, amount, category, description, date) VALUES (?, ?, ?, ?, ?)',
-      [data.type, amount, data.category, data.description || '', data.date || this.getToday()]);
+    const isEssential = data.is_essential !== undefined ? data.is_essential : 1;
+    const paymentMethod = data.payment_method || 'nakit';
+    const info = this.run(
+      'INSERT INTO transactions (type, amount, category, description, date, is_essential, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [data.type, amount, data.category, data.description || '', data.date || this.getToday(), isEssential, paymentMethod]
+    );
 
     this.unlockAchievement('first_transaction');
 
@@ -540,27 +549,43 @@ class AppDatabase {
   }
 
   addAsset(data) {
-    return this.run('INSERT INTO assets (name, type, value, notes) VALUES (?, ?, ?, ?)',
-      [data.name, data.type, data.value, data.notes || null]);
+    const now = new Date().toISOString().slice(0, 10);
+    return this.run('INSERT INTO assets (name, type, value, notes, currency_code, last_updated) VALUES (?, ?, ?, ?, ?, ?)',
+      [data.name, data.type, data.value, data.notes || null, data.currency_code || 'TRY', now]);
   }
 
   updateAsset(id, data) {
-    return this.run('UPDATE assets SET name=?, type=?, value=?, notes=? WHERE id=?',
-      [data.name, data.type, data.value, data.notes || null, id]);
+    const now = new Date().toISOString().slice(0, 10);
+    return this.run('UPDATE assets SET name=?, type=?, value=?, notes=?, currency_code=?, last_updated=? WHERE id=?',
+      [data.name, data.type, data.value, data.notes || null, data.currency_code || 'TRY', now, id]);
   }
 
   deleteAsset(id) {
     return this.run('DELETE FROM assets WHERE id=?', [id]);
   }
 
-  getNetWorth() {
-    const totalAssets = this.get('SELECT COALESCE(SUM(value), 0) as total FROM assets');
-    const totalDebts  = this.get("SELECT COALESCE(SUM(total_amount - paid_amount), 0) as total FROM debts WHERE is_active = 1");
+  getNetWorth(rates) {
+    // rates: { USD: 38.5, EUR: 41.2, ... } — TRY karşılığı
+    const rateMap = rates || {};
     const assets = this.getAssets();
+    let totalAssetsTRY = 0;
+    assets.forEach(a => {
+      const code = (a.currency_code || 'TRY').toUpperCase();
+      if (code === 'TRY' || !rateMap[code] || rateMap[code] <= 0) {
+        a.value_try = a.value;
+        a.converted = false;
+      } else {
+        a.value_try = a.value * rateMap[code];
+        a.converted = true;
+        a.rate_used = rateMap[code];
+      }
+      totalAssetsTRY += a.value_try;
+    });
+    const totalDebts = this.get("SELECT COALESCE(SUM(total_amount - paid_amount), 0) as total FROM debts WHERE is_active = 1");
     return {
-      totalAssets: totalAssets.total,
+      totalAssets: totalAssetsTRY,
       totalDebts:  totalDebts.total,
-      netWorth:    totalAssets.total - totalDebts.total,
+      netWorth:    totalAssetsTRY - totalDebts.total,
       assets
     };
   }

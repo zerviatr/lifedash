@@ -1,4 +1,26 @@
 // ============ FINANCE PAGE ============
+// ============ AUTO-CATEGORIZATION MAPPING ============
+const CATEGORY_KEYWORDS = {
+  yemek:   ['migros', 'a101', 'bim', 'burger', 'pizza', 'kfc', 'mcdo', 'mcdonald', 'dominos', 'yemeksepeti', 'getir', 'restoran', 'kafe', 'cafe', 'kahvalt', 'market yemek', 'öğle', 'akşam yemeği'],
+  ulasim:  ['uber', 'taksi', 'oto', 'otobü', 'metro', 'akbil', 'istanbulkart', 'shell', 'bp', 'opet', 'petrol', 'benzin', 'yakıt', 'tramvay', 'marmaray'],
+  market:  ['carrefour', 'şok', 'bim', 'a 101', 'metro market', 'file market', 'sol market', 'kipa'],
+  eglence: ['netflix', 'spotify', 'steam', 'sinema', 'bilet', 'playstation', 'xbox', 'twitch', 'youtube premium', 'disneyplus', 'amazon prime', 'blutv'],
+  fatura:  ['turkcell', 'vodafone', 'türk telekom', 'elektrik', 'doğalgaz', 'su faturası', 'internet', 'ttnet', 'superonline', 'fatura'],
+  saglik:  ['eczane', 'hastane', 'klinik', 'doktor', 'diş', 'optik', 'lens', 'ilaç', 'vitamin'],
+  giyim:   ['zara', 'h&m', 'lcw', 'koton', 'mango', 'defacto', 'bershka', 'pull&bear', 'nike', 'adidas', 'spor ayakkabı'],
+  kira:    ['kira', 'aidat', 'site aidat'],
+  egitim:  ['udemy', 'coursera', 'kitap', 'kırtasiye', 'okul', 'ders', 'kurs', 'eğitim'],
+};
+
+function autoDetectCategory(desc) {
+  if (!desc || desc.length < 2) return null;
+  const lower = desc.toLowerCase().trim();
+  for (const [cat, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (keywords.some(kw => lower.includes(kw))) return cat;
+  }
+  return null;
+}
+
 const FinancePage = {
   currentTab: 'overview',
 
@@ -158,7 +180,18 @@ const FinancePage = {
             </select>
           </div>
           <div class="form-group">
-            <input type="text" class="form-input" id="quick-desc" placeholder="Açıklama (opsiyonel)">
+            <input type="text" class="form-input" id="quick-desc" placeholder="Açıklama (opsiyonel)" oninput="FinancePage.handleDescInput(this.value)">
+          </div>
+          <div class="form-group">
+            <select class="form-select" id="quick-payment-method" title="Ödeme Yöntemi">
+              <option value="nakit">💵 Nakit</option>
+              <option value="kredi_karti">💳 Kredi Kartı</option>
+              <option value="banka">🏦 Banka/EFT</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:0; display:flex; align-items:center; gap:6px; white-space:nowrap;">
+            <input type="checkbox" id="quick-is-essential" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
+            <label for="quick-is-essential" class="text-sm" style="cursor:pointer;">Zorunlu</label>
           </div>
           <div class="form-group" style="flex:0; display:flex; gap:8px;">
             <button class="btn btn-danger" onclick="FinancePage.quickAddExpense()">Ekle</button>
@@ -276,7 +309,25 @@ const FinancePage = {
   },
 
   async renderVarliklar(container) {
-    const nw = await api.finance.getNetWorth();
+    // Canlı kurları çek (mevcut endpoint — 5dk cache)
+    let rates = {};
+    try {
+      const rateData = await api.currency.fetchRates();
+      if (rateData) rates = rateData;
+    } catch {}
+
+    // BTC için CoinGecko'dan kur ekle
+    try {
+      const cryptoData = await api.currency.fetchCrypto();
+      if (cryptoData && cryptoData.length) {
+        const btc = cryptoData.find(c => c.symbol === 'btc');
+        if (btc && rates['USD']) {
+          rates['BTC'] = btc.current_price * rates['USD']; // BTC/TRY
+        }
+      }
+    } catch {}
+
+    const nw = await api.finance.getNetWorth(rates);
     const { totalAssets, totalDebts, netWorth, assets } = nw;
 
     const assetTypes = {
@@ -295,10 +346,12 @@ const FinancePage = {
       grouped[a.type].push(a);
     });
 
+    const hasLiveRates = Object.keys(rates).length > 0;
+
     container.innerHTML = `
       <!-- Net Worth Hero -->
       <div class="card mb-16" style="text-align:center; background: linear-gradient(135deg, var(--bg-card) 0%, rgba(109,40,217,0.15) 100%); border: 1px solid rgba(109,40,217,0.3);">
-        <div class="text-sm text-muted mb-8">Net Değerim</div>
+        <div class="text-sm text-muted mb-8">Net Değerim ${hasLiveRates ? '<span style="color:var(--success);font-size:11px;">● Canlı Kur</span>' : ''}</div>
         <div style="font-size:36px; font-weight:800; color:${netWorth >= 0 ? 'var(--success)' : 'var(--danger)'};">${formatMoney(netWorth)}</div>
         <div style="display:flex; justify-content:center; gap:32px; margin-top:16px;">
           <div>
@@ -327,26 +380,33 @@ const FinancePage = {
         </div>
       ` : Object.entries(grouped).map(([type, items]) => {
         const typeInfo = assetTypes[type] || { label: type, emoji: '📦' };
-        const typeTotal = items.reduce((s, a) => s + a.value, 0);
+        const typeTotal = items.reduce((s, a) => s + (a.value_try || a.value), 0);
         return `
           <div class="card mb-12">
             <div class="flex-between mb-12">
               <div class="card-title" style="margin:0;">${typeInfo.emoji} ${typeInfo.label}</div>
               <div class="font-bold text-success">${formatMoney(typeTotal)}</div>
             </div>
-            ${items.map(a => `
+            ${items.map(a => {
+              const cur = a.currency_code || 'TRY';
+              const displayVal = formatMoney(a.value_try || a.value);
+              const convNote = a.converted
+                ? `<div class="text-sm" style="color:var(--accent);">${a.value.toLocaleString('tr-TR')} ${cur} × ${a.rate_used ? a.rate_used.toFixed(2) : '?'} = ${displayVal}</div>`
+                : (cur !== 'TRY' ? `<div class="text-sm text-muted">${a.value.toLocaleString('tr-TR')} ${cur} (kur yüklenemedi)</div>` : '');
+              return `
               <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border);">
                 <div>
-                  <div class="font-bold">${a.name}</div>
+                  <div class="font-bold">${a.name} <span class="text-sm text-muted" style="font-weight:400;">${cur !== 'TRY' ? `[${cur}]` : ''}</span></div>
                   ${a.notes ? `<div class="text-sm text-muted">${a.notes}</div>` : ''}
+                  ${convNote}
                 </div>
                 <div style="display:flex; align-items:center; gap:12px;">
-                  <div class="font-bold">${formatMoney(a.value)}</div>
-                  <button class="btn btn-ghost btn-sm" onclick="FinancePage.showEditAssetModal(${a.id}, '${a.name.replace(/'/g, "\\'")}', '${a.type}', ${a.value}, '${(a.notes || '').replace(/'/g, "\\'")}')">Düzenle</button>
+                  <div class="font-bold">${displayVal}</div>
+                  <button class="btn btn-ghost btn-sm" onclick="FinancePage.showEditAssetModal(${a.id}, '${a.name.replace(/'/g, "\\'")}', '${a.type}', ${a.value}, '${(a.notes || '').replace(/'/g, "\\'")}', '${cur}')">Düzenle</button>
                   <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="FinancePage.deleteAsset(${a.id})">Sil</button>
                 </div>
               </div>
-            `).join('')}
+            `}).join('')}
           </div>
         `;
       }).join('')}
@@ -364,6 +424,13 @@ const FinancePage = {
       <option value="crypto">₿ Kripto</option>
       <option value="other">📦 Diğer</option>
     `;
+    const currencyOptions = `
+      <option value="TRY">₺ Türk Lirası (TRY)</option>
+      <option value="USD">$ Dolar (USD)</option>
+      <option value="EUR">€ Euro (EUR)</option>
+      <option value="GBP">£ Sterlin (GBP)</option>
+      <option value="BTC">₿ Bitcoin (BTC) — hakiki miktar</option>
+    `;
     showModal('Varlık Ekle', `
       <div class="form-group">
         <label class="form-label">Varlık Adı</label>
@@ -373,9 +440,15 @@ const FinancePage = {
         <label class="form-label">Tür</label>
         <select class="form-select" id="asset-type">${assetTypeOptions}</select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Değer (₺)</label>
-        <input type="number" class="form-input" id="asset-value" step="0.01" placeholder="0.00">
+      <div class="form-row" style="gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Değer (Seçilen para biriminde)</label>
+          <input type="number" class="form-input" id="asset-value" step="any" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Para Birimi</label>
+          <select class="form-select" id="asset-currency">${currencyOptions}</select>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Not (opsiyonel)</label>
@@ -385,19 +458,23 @@ const FinancePage = {
       const name  = document.getElementById('asset-name').value.trim();
       const type  = document.getElementById('asset-type').value;
       const value = parseFloat(document.getElementById('asset-value').value);
+      const currency = document.getElementById('asset-currency').value;
       const notes = document.getElementById('asset-notes').value.trim();
       if (!name) { Toast.show('Varlık adı gir!', 'error'); return; }
       if (!value || isNaN(value) || value < 0) { Toast.show('Geçerli değer gir!', 'error'); return; }
-      await api.finance.addAsset({ name, type, value, notes });
+      await api.finance.addAsset({ name, type, value, notes, currency_code: currency });
       overlay.remove();
       Toast.show('Varlık eklendi!', 'success');
       await this.renderTab('varliklar');
     });
   },
 
-  showEditAssetModal(id, name, type, value, notes) {
+  showEditAssetModal(id, name, type, value, notes, currencyCode) {
     const opts = ['savings','investment','real_estate','vehicle','crypto','other'];
     const labels = { savings:'🏦 Birikim', investment:'📈 Yatırım', real_estate:'🏠 Gayrimenkul', vehicle:'🚗 Araç', crypto:'₿ Kripto', other:'📦 Diğer' };
+    const currencies = ['TRY','USD','EUR','GBP','BTC'];
+    const currencyLabels = { TRY:'₺ TRY', USD:'$ USD', EUR:'€ EUR', GBP:'£ GBP', BTC:'₿ BTC' };
+    const cur = currencyCode || 'TRY';
     showModal('Varlık Düzenle', `
       <div class="form-group">
         <label class="form-label">Varlık Adı</label>
@@ -409,9 +486,17 @@ const FinancePage = {
           ${opts.map(o => `<option value="${o}" ${o === type ? 'selected' : ''}>${labels[o]}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Değer (₺)</label>
-        <input type="number" class="form-input" id="asset-value" step="0.01" value="${value}">
+      <div class="form-row" style="gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Değer</label>
+          <input type="number" class="form-input" id="asset-value" step="any" value="${value}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Para Birimi</label>
+          <select class="form-select" id="asset-currency">
+            ${currencies.map(c => `<option value="${c}" ${c === cur ? 'selected' : ''}>${currencyLabels[c]}</option>`).join('')}
+          </select>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Not</label>
@@ -421,10 +506,11 @@ const FinancePage = {
       const n = document.getElementById('asset-name').value.trim();
       const t = document.getElementById('asset-type').value;
       const v = parseFloat(document.getElementById('asset-value').value);
+      const c = document.getElementById('asset-currency').value;
       const nt = document.getElementById('asset-notes').value.trim();
       if (!n) { Toast.show('Varlık adı gir!', 'error'); return; }
       if (isNaN(v) || v < 0) { Toast.show('Geçerli değer gir!', 'error'); return; }
-      await api.finance.updateAsset(id, { name: n, type: t, value: v, notes: nt });
+      await api.finance.updateAsset(id, { name: n, type: t, value: v, notes: nt, currency_code: c });
       overlay.remove();
       Toast.show('Varlık güncellendi!', 'success');
       await this.renderTab('varliklar');
@@ -438,10 +524,20 @@ const FinancePage = {
     await this.renderTab('varliklar');
   },
 
+  handleDescInput(val) {
+    const detected = autoDetectCategory(val);
+    if (detected) {
+      const sel = document.getElementById('quick-category');
+      if (sel) sel.value = detected;
+    }
+  },
+
   async quickAddExpense() {
     const amount = parseFloat(document.getElementById('quick-amount').value);
     const category = document.getElementById('quick-category').value;
     const desc = document.getElementById('quick-desc').value;
+    const paymentMethod = (document.getElementById('quick-payment-method') || {}).value || 'nakit';
+    const isEssential = document.getElementById('quick-is-essential')?.checked ? 1 : 0;
 
     if (!amount || isNaN(amount) || amount <= 0) {
       Toast.show('Geçerli bir tutar gir!', 'error');
@@ -454,7 +550,9 @@ const FinancePage = {
         amount,
         category,
         description: desc,
-        date: getTodayStr()
+        date: getTodayStr(),
+        payment_method: paymentMethod,
+        is_essential: isEssential
       });
 
       // Clear inputs
@@ -532,6 +630,8 @@ const FinancePage = {
   async renderTransactions(container) {
     const transactions = await api.finance.getTransactions({ limit: 50 });
 
+    const pmIcon = { nakit: '💵', kredi_karti: '💳', banka: '🏦' };
+
     container.innerHTML = `
       <div class="flex-between mb-16">
         <div class="card-title" style="margin:0;">Tüm İşlemler</div>
@@ -546,7 +646,7 @@ const FinancePage = {
         <div class="table-container card">
           <table>
             <thead>
-              <tr><th>Tarih</th><th>Tür</th><th>Kategori</th><th>Açıklama</th><th>Tutar</th><th></th></tr>
+              <tr><th>Tarih</th><th>Tür</th><th>Kategori</th><th>Açıklama</th><th>Tutar</th><th style="text-align:center">Ödeme</th><th></th></tr>
             </thead>
             <tbody>
               ${transactions.map(t => `
@@ -554,8 +654,9 @@ const FinancePage = {
                   <td>${t.date}</td>
                   <td><span class="tag tag-${t.type}">${t.type === 'income' ? 'Gelir' : 'Gider'}</span></td>
                   <td>${this.getCategoryLabel(t.category)}</td>
-                  <td>${t.description || '—'}</td>
+                  <td>${t.description || '—'}${t.type === 'expense' && t.is_essential === 0 ? ' <span title="Zorunlu değil" style="color:var(--warning);font-size:11px;">⚠ isteğe bağlı</span>' : ''}</td>
                   <td class="font-bold ${t.type === 'income' ? 'text-success' : 'text-danger'}">${t.type === 'income' ? '+' : '-'}${formatMoney(t.amount)}</td>
+                  <td style="text-align:center; font-size:16px;" title="${t.payment_method || 'nakit'}">${pmIcon[t.payment_method] || '💵'}</td>
                   <td><button class="btn btn-ghost btn-sm" onclick="FinancePage.deleteTransaction(${t.id})">${icon('trash-2', 14)}</button></td>
                 </tr>
               `).join('')}
@@ -598,28 +699,57 @@ const FinancePage = {
       </div>
       <div class="form-group">
         <label class="form-label">Açıklama</label>
-        <input type="text" class="form-input" id="tx-desc" placeholder="Opsiyonel">
+        <input type="text" class="form-input" id="tx-desc" placeholder="Opsiyonel" oninput="FinancePage.handleDescInputModal(this.value)">
       </div>
       <div class="form-group">
         <label class="form-label">Tarih</label>
         <input type="date" class="form-input" id="tx-date" value="${getTodayStr()}">
       </div>
+      ${type === 'expense' ? `
+      <div class="form-row" style="gap:16px;">
+        <div class="form-group">
+          <label class="form-label">Ödeme Yöntemi</label>
+          <select class="form-select" id="tx-payment-method">
+            <option value="nakit">💵 Nakit</option>
+            <option value="kredi_karti">💳 Kredi Kartı</option>
+            <option value="banka">🏦 Banka/EFT</option>
+          </select>
+        </div>
+        <div class="form-group" style="display:flex; align-items:flex-end; gap:8px;">
+          <input type="checkbox" id="tx-is-essential" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
+          <label for="tx-is-essential" class="form-label" style="cursor:pointer; margin:0;">Zorunlu gider mi?</label>
+        </div>
+      </div>` : ''}
     `, async (overlay) => {
       const amount = parseFloat(document.getElementById('tx-amount').value);
       if (!amount || isNaN(amount) || amount <= 0) { Toast.show('Geçerli tutar gir!', 'error'); return; }
 
-      await api.finance.addTransaction({
+      const txData = {
         type,
         amount,
         category: document.getElementById('tx-category').value,
         description: document.getElementById('tx-desc').value,
         date: document.getElementById('tx-date').value
-      });
+      };
+      if (type === 'expense') {
+        txData.payment_method = document.getElementById('tx-payment-method')?.value || 'nakit';
+        txData.is_essential = document.getElementById('tx-is-essential')?.checked ? 1 : 0;
+      }
+
+      await api.finance.addTransaction(txData);
 
       overlay.remove();
       Toast.show(`${type === 'income' ? 'Gelir' : 'Gider'} eklendi: ${formatMoney(amount)}`, 'success');
       await this.afterFinanceChange();
     });
+  },
+
+  handleDescInputModal(val) {
+    const detected = autoDetectCategory(val);
+    if (detected) {
+      const sel = document.getElementById('tx-category');
+      if (sel) sel.value = detected;
+    }
   },
 
   async deleteTransaction(id) {

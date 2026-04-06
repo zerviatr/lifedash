@@ -4,7 +4,8 @@ const AutoLaunch = require('auto-launch');
 const AppDatabase = require('./database');
 const https = require('https');
 const http = require('http');
-const { autoUpdater } = require('electron-updater');
+// electron-updater is loaded lazily after app:ready to avoid getVersion() crash in dev
+let autoUpdater = null;
 
 // Suppress GPU shader disk cache errors on Windows
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
@@ -378,7 +379,7 @@ function setupIPC() {
   ipcMain.handle('db-add-asset', (_, data) => db.addAsset(data));
   ipcMain.handle('db-update-asset', (_, id, data) => db.updateAsset(id, data));
   ipcMain.handle('db-delete-asset', (_, id) => db.deleteAsset(id));
-  ipcMain.handle('db-get-net-worth', () => db.getNetWorth());
+  ipcMain.handle('db-get-net-worth', (_, rates) => db.getNetWorth(rates || {}));
   ipcMain.handle('db-get-expenses-by-category', (_, month) => db.getExpensesByCategory(month));
 
   ipcMain.handle('db-add-impulse', (_, data) => db.addImpulse(data));
@@ -672,6 +673,14 @@ LÜTFEN SADECE VE SADECE aşağıdaki yapıda bir JSON objesi döndür, başka h
 // =================== AUTO-UPDATER ===================
 function setupAutoUpdater() {
   if (!app.isPackaged) return;
+
+  // Load lazily after app is ready (avoid getVersion() crash in dev)
+  try {
+    autoUpdater = require('electron-updater').autoUpdater;
+  } catch (e) {
+    console.log('electron-updater load failed:', e.message);
+    return;
+  }
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
