@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LifeDash</title>
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- CSS Architecture (modular split) -->
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/pages.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/utilities.css">
+  <link rel="stylesheet" href="css/vfx.css">
+</head>
+<body>
+  <!-- VFX Canvas Overlay -->
+  <canvas id="vfx-canvas"></canvas>
+
+  <!-- Custom Title Bar -->
+  <div class="titlebar" id="titlebar">
+    <div class="titlebar-drag">
+      <span class="titlebar-logo"><i data-lucide="zap" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;"></i> LifeDash</span>
+      <span class="titlebar-xp" id="titlebar-xp">Lv.1 • 0 XP</span>
+      <span class="titlebar-coins" id="titlebar-coins"><i data-lucide="coins" style="width:12px;height:12px;display:inline-block;vertical-align:-1px;"></i> 0</span>
+    </div>
+    <div class="titlebar-controls">
+      <button onclick="api.window.minimize()" class="tb-btn tb-minimize">─</button>
+      <button onclick="api.window.maximize()" class="tb-btn tb-maximize">□</button>
+      <button onclick="api.window.close()" class="tb-btn tb-close">✕</button>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-nav">
+        <!-- Ana -->
+        <div class="nav-group">
+          <button class="nav-btn active" data-page="dashboard" title="Dashboard">
+            <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>
+            <span class="nav-label">Dashboard</span>
+          </button>
+        </div>
+        <!-- Yonetim -->
+        <div class="nav-group">
+          <span class="nav-group-title">YONETIM</span>
+          <button class="nav-btn" data-page="tasks" title="Gorevler">
+            <span class="nav-icon"><i data-lucide="swords"></i></span>
+            <span class="nav-label">Gorevler</span>
+          </button>
+          <button class="nav-btn" data-page="habits" title="Aliskanliklar">
+            <span class="nav-icon"><i data-lucide="target"></i></span>
+            <span class="nav-label">Aliskanliklar</span>
+          </button>
+          <button class="nav-btn" data-page="pomodoro" title="Pomodoro">
+            <span class="nav-icon"><i data-lucide="timer"></i></span>
+            <span class="nav-label">Pomodoro</span>
+          </button>
+          <button class="nav-btn" data-page="journal" title="Gunluk">
+            <span class="nav-icon"><i data-lucide="book-open"></i></span>
+            <span class="nav-label">Gunluk</span>
+          </button>
+          <button class="nav-btn" data-page="calendar" title="Takvim">
+            <span class="nav-icon"><i data-lucide="calendar"></i></span>
+            <span class="nav-label">Takvim</span>
+          </button>
+        </div>
+        <!-- Finans -->
+        <div class="nav-group">
+          <span class="nav-group-title">FINANS</span>
+          <button class="nav-btn" data-page="finance" title="Finans">
+            <span class="nav-icon"><i data-lucide="wallet"></i></span>
+            <span class="nav-label">Finans</span>
+          </button>
+          <button class="nav-btn" data-page="currency" title="Doviz">
+            <span class="nav-icon"><i data-lucide="arrow-left-right"></i></span>
+            <span class="nav-label">Doviz</span>
+          </button>
+        </div>
+        <!-- Oyun -->
+        <div class="nav-group">
+          <span class="nav-group-title">OYUN</span>
+          <button class="nav-btn" data-page="achievements" title="Basarimlar">
+            <span class="nav-icon"><i data-lucide="trophy"></i></span>
+            <span class="nav-label">Basarimlar</span>
+          </button>
+          <button class="nav-btn" data-page="shop" title="Dukkan">
+            <span class="nav-icon"><i data-lucide="shopping-cart"></i></span>
+            <span class="nav-label">Dukkan</span>
+          </button>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-title">DIGER</span>
+          <button class="nav-btn" data-page="reports" title="Raporlar">
+            <span class="nav-icon"><i data-lucide="trending-up"></i></span>
+            <span class="nav-label">Raporlar</span>
+          </button>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <button class="nav-btn" data-page="settings" title="Ayarlar">
+          <span class="nav-icon"><i data-lucide="settings"></i></span>
+          <span class="nav-label">Ayarlar</span>
+        </button>
+        <div class="streak-badge" id="streak-badge">
+          <span class="streak-fire"><i data-lucide="flame" style="width:14px;height:14px;color:var(--warning);"></i></span>
+          <span class="streak-count" id="streak-count">0</span>
+        </div>
+        <!-- Sidebar collapse toggle -->
+        <button class="sidebar-toggle" id="sidebar-toggle" title="Sidebar">
+          <i data-lucide="panel-left-close" id="sidebar-toggle-icon"></i>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Content Area -->
+    <main class="content" id="content">
+      <!-- Pages will be rendered here -->
+    </main>
+  </div>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+  <!-- App Scripts -->
+  <script src="js/pubsub.js"></script>
+  <script src="js/sounds.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/vfx.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/finance.js"></script>
+  <script src="js/tasks.js"></script>
+  <script src="js/habits.js"></script>
+  <script src="js/pomodoro.js"></script>
+  <script src="js/achievements.js"></script>
+  <script src="js/currency.js"></script>
+  <script src="js/reports.js"></script>
+  <script src="js/shop.js"></script>
+  <script src="js/journal.js"></script>
+  <script src="js/calendar.js"></script>
+  <script src="js/settings.js"></script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+{
+  "name": "lifedash",
+  "version": "2.2.0",
+  "description": "Personal Management + Financial Tracker + Gamification",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder --win",
+    "build:dir": "electron-builder --win --dir",
+    "release": "electron-builder --win --publish always",
+    "pack": "npx electron-packager . LifeDash --platform=win32 --arch=x64 --out=dist-pack --overwrite --icon=assets/icon.ico",
+    "rebuild": "npx electron-rebuild"
+  },
+  "author": "LifeDash",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "auto-launch": "^5.0.6",
+    "better-sqlite3": "^12.8.0",
+    "electron-updater": "^6.8.3"
+  },
+  "build": {
+    "appId": "com.lifedash.app",
+    "productName": "LifeDash",
+    "npmRebuild": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "database.js",
+      "renderer/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LifeDash"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "zerviatr",
+      "repo": "lifedash"
+    }
+  }
+}

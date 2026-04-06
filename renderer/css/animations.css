@@ -1,0 +1,176 @@
+/* ============ KEYFRAME ANIMATIONS v5.0 ============ */
+
+/* Modal */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* Toast */
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(40px) scale(0.95); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes toastTimer {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+/* Page Transition */
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Modal Entrance (enhanced) */
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalScaleIn {
+  from { opacity: 0; transform: scale(0.92) translateY(12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Achievement Glow Pulse */
+.achievement-card-showcase.unlocked {
+  animation: achievementGlow 2s ease-in-out infinite;
+}
+@keyframes achievementGlow {
+  0%, 100% { box-shadow: 0 0 12px var(--accent-glow); }
+  50% { box-shadow: 0 0 24px var(--accent-glow), 0 0 48px rgba(99,102,241,0.1); }
+}
+
+/* Nav Active Indicator Slide */
+@keyframes navSlide {
+  from { height: 0; opacity: 0; }
+  to { height: 55%; opacity: 1; }
+}
+
+/* Tooltip entrance */
+@keyframes tooltipIn {
+  from { opacity: 0; transform: translateY(-50%) translateX(-4px) scale(0.95); }
+  to { opacity: 1; transform: translateY(-50%) translateX(0) scale(1); }
+}
+
+/* Streak Danger Pulse */
+@keyframes streakPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+  50% { box-shadow: 0 0 12px 4px rgba(239,68,68,0.3); }
+}
+
+/* Spin Icon (Currency refresh) */
+.spin-icon {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Loot Box */
+@keyframes lootPulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 10px var(--accent-glow)); }
+  50% { transform: scale(1.05); filter: drop-shadow(0 0 25px var(--accent-glow)); }
+}
+@keyframes lootReveal {
+  0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* ============ MICRO-INTERACTIONS ============ */
+
+/* Button press feedback */
+.btn:active, .nav-btn:active {
+  transform: scale(0.96);
+  transition-duration: 80ms;
+}
+
+/* Ripple expand */
+@keyframes rippleExpand {
+  to { transform: scale(4); opacity: 0; }
+}
+
+/* Progress bar fill */
+.progress-fill, .xp-fill {
+  transition: width 0.6s var(--ease-spring);
+}
+
+/* Habit check bounce */
+@keyframes checkBounce {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+/* ============ SKELETON SHIMMER ============ */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, rgba(255,255,255,0.05) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+.skeleton-text { height: 14px; width: 60%; margin-bottom: 8px; }
+.skeleton-rect { height: 120px; width: 100%; }
+.skeleton-circle { width: 40px; height: 40px; border-radius: 50%; }
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ============ FLOATING ELEMENTS ============ */
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-60px); }
+}
+
+@keyframes floatUpDown {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* ============ PAGE TITLE GRADIENT SHIFT ============ */
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ============ GAMIFICATION VFX ============ */
+
+/* Rarity colors */
+.rarity-common { color: var(--rarity-common); }
+.rarity-rare { color: var(--rarity-rare); }
+.rarity-epic { color: var(--rarity-epic); }
+.rarity-legendary { color: var(--rarity-legendary); text-shadow: 0 0 8px rgba(245, 158, 11, 0.4); }
+
+/* XP bar glow */
+.xp-fill {
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+/* Streak fire pulse */
+@keyframes firePulse {
+  0%, 100% { text-shadow: 0 0 4px rgba(245, 158, 11, 0.4); }
+  50% { text-shadow: 0 0 12px rgba(239, 68, 68, 0.6), 0 0 24px rgba(245, 158, 11, 0.3); }
+}
+.streak-badge .streak-fire {
+  animation: firePulse 2s ease-in-out infinite;
+}
+
+/* Shop card hover lift */
+.grid-3 .card[style*="border-top"]:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Active buff golden glow */
+.card[style*="border-left: 4px solid #fbbf24"] {
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.15);
+}
+
+/* Challenge progress card */
+.card .progress-bar .progress-fill {
+  transition: width 0.5s ease-out;
+}

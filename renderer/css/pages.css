@@ -1,0 +1,357 @@
+/* ============ DAILY LIMIT WIDGET ============ */
+.daily-limit-widget {
+  background: linear-gradient(135deg, var(--glass-bg), rgba(99,102,241,0.1));
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--accent-200);
+  border-radius: var(--radius);
+  padding: 24px;
+  text-align: center;
+  box-shadow: var(--accent-glow-lg);
+}
+
+.daily-limit-amount {
+  font-size: 48px;
+  font-weight: 900;
+  color: var(--accent-light);
+  line-height: 1;
+  margin: 8px 0;
+}
+
+.daily-limit-label {
+  font-size: 13px;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.daily-limit-sub {
+  font-size: 14px;
+  color: var(--text-3);
+  margin-top: 8px;
+}
+
+/* ============ POMODORO (Circular progress ring) ============ */
+.pomodoro-timer {
+  text-align: center;
+  padding: 40px;
+  position: relative;
+}
+
+.pomodoro-ring {
+  width: 240px;
+  height: 240px;
+  margin: 0 auto 24px;
+  position: relative;
+}
+
+.pomodoro-ring svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+
+.pomodoro-ring .ring-bg {
+  fill: none;
+  stroke: var(--surface-3);
+  stroke-width: 6;
+}
+
+.pomodoro-ring .ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+  filter: drop-shadow(0 0 8px var(--accent-glow));
+}
+
+.pomodoro-ring .ring-time {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.timer-display {
+  font-size: 72px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -2px;
+  color: var(--text-1);
+  text-shadow: 0 0 40px var(--accent-glow);
+}
+
+.timer-label {
+  font-size: 14px;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-top: 4px;
+}
+
+.timer-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.timer-controls .btn { min-width: 120px; justify-content: center; }
+
+/* ============ CURRENCY PAGE ============ */
+.currency-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.currency-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.currency-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+.currency-pair {
+  font-size: 12px;
+  color: var(--text-4);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.currency-price {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 6px 0;
+}
+
+.currency-change {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 8px;
+  display: inline-block;
+}
+
+.currency-change.up { color: var(--success); background: var(--success-glow); }
+.currency-change.down { color: var(--danger); background: var(--danger-glow); }
+
+.converter-box {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+/* ============ CHART CANVAS ============ */
+.chart-container {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 20px;
+  position: relative;
+}
+
+.chart-container canvas {
+  width: 100% !important;
+  height: 250px !important;
+}
+
+/* ============ LOOT BOX ============ */
+.lootbox-container {
+  text-align: center;
+  padding: 20px;
+}
+
+.lootbox-icon {
+  font-size: 80px;
+  animation: lootPulse 2s infinite;
+  cursor: pointer;
+  display: inline-block;
+  transition: transform 0.3s;
+}
+
+.lootbox-icon:hover { transform: scale(1.15); }
+
+.loot-reveal {
+  animation: lootReveal 0.5s var(--ease-spring);
+}
+
+/* ============ BOSS BATTLE WIDGET (Animated gradient border) ============ */
+.boss-widget {
+  background: linear-gradient(135deg, var(--glass-bg), rgba(239, 68, 68, 0.1));
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  animation: bossGlow 3s ease-in-out infinite;
+}
+
+@keyframes bossGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(239,68,68,0.2); }
+  50% { box-shadow: 0 0 24px rgba(239,68,68,0.3), 0 0 48px rgba(239,68,68,0.1); }
+}
+
+.boss-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--danger);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.boss-days {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.boss-day {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  transition: all var(--duration-normal) var(--ease-spring);
+}
+
+.boss-day.passed { border-color: var(--success); background: var(--success); color: white; }
+.boss-day.failed { border-color: var(--danger); background: var(--danger); color: white; }
+.boss-day.pending { border-color: var(--text-4); }
+.boss-day.today { border-color: var(--accent); box-shadow: var(--accent-glow-sm); }
+
+/* ============ MINI CURRENCY WIDGET ============ */
+.mini-currency {
+  display: flex;
+  gap: 8px;
+}
+
+.mini-currency-item {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  flex: 1;
+  text-align: center;
+}
+
+.mini-currency-label { font-size: 10px; color: var(--text-4); font-weight: 600; }
+.mini-currency-value { font-size: 15px; font-weight: 800; margin-top: 2px; }
+
+/* ============ PROFILE HERO ============ */
+.profile-hero {
+  background: linear-gradient(135deg, var(--glass-bg) 0%, var(--accent-100) 50%, var(--glass-bg) 100%);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--accent-200);
+  border-radius: var(--radius);
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.profile-hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, var(--accent-100) 0%, transparent 70%);
+  pointer-events: none;
+}
+.profile-hero-inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  position: relative;
+  z-index: 1;
+}
+.profile-level-circle {
+  min-width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--accent-glow-md), var(--accent-glow-lg);
+}
+.profile-level-num {
+  font-size: 32px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+}
+.profile-level-title {
+  font-size: 11px;
+  color: rgba(255,255,255,0.85);
+  margin-top: 2px;
+}
+.profile-info { flex: 1; }
+.profile-badge-main {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--text-1);
+}
+.profile-stats-row {
+  display: flex;
+  gap: 24px;
+}
+.profile-stat { text-align: center; }
+.profile-stat-val {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-1);
+}
+.profile-stat-label {
+  font-size: 11px;
+  color: var(--text-4);
+  margin-top: 2px;
+}
+.profile-xp-bar {
+  margin-top: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ============ ACHIEVEMENT SHOWCASE CARDS ============ */
+.achievement-card-showcase {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 1px solid var(--glass-border);
+}
+.achievement-card-showcase.unlocked {
+  border-color: var(--accent-200);
+  box-shadow: var(--accent-glow-sm);
+}
+.achievement-card-showcase.unlocked:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--accent-glow-md);
+}
+.achievement-card-showcase.locked {
+  opacity: 0.5;
+}
+.achievement-icon-lg {
+  font-size: 36px;
+  margin-bottom: 8px;
+}
