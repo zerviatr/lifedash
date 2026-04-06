@@ -187,6 +187,7 @@ const App = {
       case 'calendar': await CalendarPage.render(content); break;
       case 'settings': await SettingsPage.render(content); break;
       case 'ai': await AiPage.render(content); break;
+      case 'quests': await QuestsPage.render(content); break;
     }
 
     // Enter animation
