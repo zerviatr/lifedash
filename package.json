@@ -1,6 +1,6 @@
 {
   "name": "lifedash",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "Personal Management + Financial Tracker + Gamification",
   "main": "main.js",
   "scripts": {
@@ -56,7 +56,8 @@
       {
         "provider": "github",
         "owner": "zerviatr",
-        "repo": "lifedash"
+        "repo": "lifedash",
+        "releaseType": "release"
       }
     ]
   }
