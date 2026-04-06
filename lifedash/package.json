@@ -1,0 +1,63 @@
+{
+  "name": "lifedash",
+  "version": "2.2.0",
+  "description": "PC Performance Dashboard + Financial Manager + Gamification",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder --win",
+    "build:dir": "electron-builder --win --dir",
+    "test": "set ELECTRON_RUN_AS_NODE=1&& npx electron ./node_modules/jest/bin/jest.js --verbose",
+    "test:unit": "set ELECTRON_RUN_AS_NODE=1&& npx electron ./node_modules/jest/bin/jest.js tests/unit --verbose",
+    "test:e2e": "npx playwright test tests/e2e",
+    "test:all": "jest tests/unit --verbose && npx playwright test tests/e2e",
+    "pack": "npx electron-packager . LifeDash --platform=win32 --arch=x64 --out=dist-pack --overwrite --icon=assets/icon.ico && node -e \"require('fs').copyFileSync('node_modules/sql.js/dist/sql-wasm.wasm','dist-pack/LifeDash-win32-x64/resources/sql-wasm.wasm')\" && echo WASM copied"
+  },
+  "author": "LifeDash",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "jest": "^30.3.0"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "auto-launch": "^5.0.6",
+    "better-sqlite3": "^9.4.3",
+    "sql.js": "^1.10.2",
+    "systeminformation": "^5.21.22"
+  },
+  "build": {
+    "appId": "com.lifedash.app",
+    "productName": "LifeDash",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "database.js",
+      "renderer/**/*",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/sql.js/dist/sql-wasm.wasm",
+        "to": "sql-wasm.wasm"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LifeDash"
+    }
+  }
+}

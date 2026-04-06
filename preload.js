@@ -34,6 +34,12 @@ contextBridge.exposeInMainWorld('api', {
     addSubscription: (data) => ipcRenderer.invoke('db-add-subscription', data),
     getSubscriptions: () => ipcRenderer.invoke('db-get-subscriptions'),
     getSubscriptionTotal: () => ipcRenderer.invoke('db-get-subscription-total'),
+    getAssets: () => ipcRenderer.invoke('db-get-assets'),
+    addAsset: (data) => ipcRenderer.invoke('db-add-asset', data),
+    updateAsset: (id, data) => ipcRenderer.invoke('db-update-asset', id, data),
+    deleteAsset: (id) => ipcRenderer.invoke('db-delete-asset', id),
+    getNetWorth: () => ipcRenderer.invoke('db-get-net-worth'),
+    getExpensesByCategory: (month) => ipcRenderer.invoke('db-get-expenses-by-category', month),
   },
 
   // Savings Goals (Kumbara)
@@ -190,12 +196,27 @@ contextBridge.exposeInMainWorld('api', {
     getMonthSummary: (yearMonth) => ipcRenderer.invoke('db-get-month-summary', yearMonth),
   },
 
+  // AI
+  ai: {
+    chat: (message, history, context) => ipcRenderer.invoke('ai-chat', { message, history, context }),
+    getContext: () => ipcRenderer.invoke('ai-get-context'),
+    generateQuest: (context) => ipcRenderer.invoke('ai-generate-quest', context),
+  },
+
+  // Dynamic Quests
+  dynamicQuests: {
+    add: (data) => ipcRenderer.invoke('db-add-dynamic-quest', data),
+    getActive: () => ipcRenderer.invoke('db-get-active-dynamic-quests'),
+    complete: (id) => ipcRenderer.invoke('db-complete-dynamic-quest', id),
+  },
+
   // Events
   events: {
     onUpdateAvailable: (callback) => {
       ipcRenderer.on('update-available', (_, data) => callback(data));
     },
     onUpdateStatus: (callback) => {
+      ipcRenderer.removeAllListeners('update-status');
       ipcRenderer.on('update-status', (_, data) => callback(data));
     },
     onNotification: (callback) => {

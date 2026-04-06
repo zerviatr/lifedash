@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LifeDash</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/tutorial.css">
+</head>
+<body>
+  <!-- Custom Title Bar -->
+  <div class="titlebar" id="titlebar">
+    <div class="titlebar-drag">
+      <span class="titlebar-logo">⚡ LifeDash</span>
+      <span class="titlebar-xp" id="titlebar-xp">Lv.1 • 0 XP</span>
+    </div>
+    <div class="titlebar-controls">
+      <button onclick="api.window.minimize()" class="tb-btn tb-minimize">─</button>
+      <button onclick="api.window.maximize()" class="tb-btn tb-maximize">□</button>
+      <button onclick="api.window.close()" class="tb-btn tb-close">✕</button>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="sidebar-nav">
+        <button class="nav-btn active" data-page="dashboard" title="Dashboard (Ctrl+1)">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Dashboard</span>
+        </button>
+        <button class="nav-btn" data-page="finance" title="Finans (Ctrl+2)">
+          <span class="nav-icon">💰</span>
+          <span class="nav-label">Finans</span>
+        </button>
+        <button class="nav-btn" data-page="tasks" title="Gorevler (Ctrl+3)">
+          <span class="nav-icon">⚔️</span>
+          <span class="nav-label">Gorevler</span>
+        </button>
+        <button class="nav-btn" data-page="habits" title="Aliskanliklar (Ctrl+4)">
+          <span class="nav-icon">🎯</span>
+          <span class="nav-label">Aliskanliklar</span>
+        </button>
+        <button class="nav-btn" data-page="pomodoro" title="Pomodoro (Ctrl+5)">
+          <span class="nav-icon">🍅</span>
+          <span class="nav-label">Pomodoro</span>
+        </button>
+        <button class="nav-btn" data-page="currency" title="Doviz (Ctrl+6)">
+          <span class="nav-icon">💱</span>
+          <span class="nav-label">Doviz</span>
+        </button>
+        <button class="nav-btn" data-page="reports" title="Raporlar (Ctrl+7)">
+          <span class="nav-icon">📈</span>
+          <span class="nav-label">Raporlar</span>
+        </button>
+        <button class="nav-btn" data-page="shop" title="Mağaza (Ctrl+8)">
+          <span class="nav-icon">🏪</span>
+          <span class="nav-label">Mağaza</span>
+        </button>
+        <button class="nav-btn" data-page="achievements" title="Basarimlar (Ctrl+9)">
+          <span class="nav-icon">🏆</span>
+          <span class="nav-label">Basarimlar</span>
+        </button>
+        <button class="nav-btn" data-page="settings" title="Ayarlar (Ctrl+0)">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">Ayarlar</span>
+        </button>
+      </div>
+      <div class="sidebar-footer">
+        <div class="streak-badge" id="streak-badge">
+          <span class="streak-fire">🔥</span>
+          <span class="streak-count" id="streak-count">0</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Content Area -->
+    <main class="content" id="content">
+      <!-- Pages will be rendered here -->
+    </main>
+  </div>
+
+  <script src="js/pubsub.js"></script>
+  <script src="js/sounds.js"></script>
+  <script src="js/tutorial.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/finance.js"></script>
+  <script src="js/tasks.js"></script>
+  <script src="js/habits.js"></script>
+  <script src="js/pomodoro.js"></script>
+  <script src="js/achievements.js"></script>
+  <script src="js/currency.js"></script>
+  <script src="js/reports.js"></script>
+  <script src="js/shop.js"></script>
+  <script src="js/settings.js"></script>
+</body>
+</html>

@@ -121,12 +121,8 @@ const JournalPage = {
     const tagsStr = document.getElementById('journal-tags').value;
     const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
 
-    // Get mood from buttons
-    let mood = this.currentMoodValue || 3;
-    for (let i = 1; i <= 5; i++) {
-      const btn = document.getElementById(`mood-btn-${i}`);
-      if (btn && btn.classList.contains('btn-primary')) { mood = i; break; }
-    }
+    // Mood değerini direkt state'den al
+    const mood = this.currentMoodValue || 3;
 
     const result = await api.journal.add({
       date: this.selectedDate || getTodayStr(),

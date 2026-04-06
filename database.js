@@ -237,6 +237,15 @@ class AppDatabase {
         category TEXT NOT NULL,
         budget_limit REAL NOT NULL,
         UNIQUE(month, category)
+      )`,
+      `CREATE TABLE IF NOT EXISTS dynamic_quests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        reward_xp INTEGER NOT NULL,
+        reward_coins INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
       )`
     ];
 
@@ -313,6 +322,16 @@ class AppDatabase {
       item2_key TEXT NOT NULL,
       result_key TEXT NOT NULL,
       coin_cost INTEGER DEFAULT 0
+    )`);
+
+    // Assets table (Net Worth Tracker)
+    this.db.exec(`CREATE TABLE IF NOT EXISTS assets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'other',
+      value REAL NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     )`);
 
     this.initAchievements();
@@ -434,8 +453,12 @@ class AppDatabase {
 
   // ============ TRANSACTIONS ============
   addTransaction(data) {
+    const amount = Number(data.amount);
+    if (!amount || amount <= 0) {
+      throw new Error('İşlem tutarı geçersiz. (Pozitif olmalıdır)');
+    }
     const info = this.run('INSERT INTO transactions (type, amount, category, description, date) VALUES (?, ?, ?, ?, ?)',
-      [data.type, data.amount, data.category, data.description || '', data.date || this.getToday()]);
+      [data.type, amount, data.category, data.description || '', data.date || this.getToday()]);
 
     this.unlockAchievement('first_transaction');
 
@@ -509,6 +532,45 @@ class AppDatabase {
 
   deleteDebt(id) {
     this.run('DELETE FROM debts WHERE id = ?', [id]);
+  }
+
+  // ============ ASSETS (Net Worth) ============
+  getAssets() {
+    return this.all('SELECT * FROM assets ORDER BY type, name');
+  }
+
+  addAsset(data) {
+    return this.run('INSERT INTO assets (name, type, value, notes) VALUES (?, ?, ?, ?)',
+      [data.name, data.type, data.value, data.notes || null]);
+  }
+
+  updateAsset(id, data) {
+    return this.run('UPDATE assets SET name=?, type=?, value=?, notes=? WHERE id=?',
+      [data.name, data.type, data.value, data.notes || null, id]);
+  }
+
+  deleteAsset(id) {
+    return this.run('DELETE FROM assets WHERE id=?', [id]);
+  }
+
+  getNetWorth() {
+    const totalAssets = this.get('SELECT COALESCE(SUM(value), 0) as total FROM assets');
+    const totalDebts  = this.get("SELECT COALESCE(SUM(total_amount - paid_amount), 0) as total FROM debts WHERE is_active = 1");
+    const assets = this.getAssets();
+    return {
+      totalAssets: totalAssets.total,
+      totalDebts:  totalDebts.total,
+      netWorth:    totalAssets.total - totalDebts.total,
+      assets
+    };
+  }
+
+  getExpensesByCategory(month) {
+    const m = month || new Date().toISOString().slice(0, 7);
+    return this.all(
+      "SELECT category, SUM(amount) as total FROM transactions WHERE type='expense' AND substr(date,1,7)=? GROUP BY category ORDER BY total DESC",
+      [m]
+    );
   }
 
   getDebtForecast(debtId) {
@@ -868,18 +930,24 @@ class AppDatabase {
     const item = this.get('SELECT * FROM shop_items WHERE key = ?', [itemKey]);
     if (!item) return { success: false, message: 'Urun bulunamadi' };
 
-    const spend = this.spendLifeCoins(item.price_coins);
-    if (!spend.success) return spend;
+    const currentCoins = this.getLifeCoins();
+    if (currentCoins < item.price_coins) return { success: false, message: 'Yetersiz LifeCoin' };
 
-    // Check if already in inventory
-    const existing = this.get('SELECT * FROM user_inventory WHERE item_key = ?', [itemKey]);
-    if (existing) {
-      this.run('UPDATE user_inventory SET quantity = quantity + 1 WHERE item_key = ?', [itemKey]);
-    } else {
-      this.run('INSERT INTO user_inventory (item_key, quantity) VALUES (?, 1)', [itemKey]);
+    try {
+      this.db.transaction(() => {
+        this.run('UPDATE user_stats SET lifecoins = ? WHERE id = 1', [currentCoins - item.price_coins]);
+        
+        const existing = this.get('SELECT * FROM user_inventory WHERE item_key = ?', [itemKey]);
+        if (existing) {
+          this.run('UPDATE user_inventory SET quantity = quantity + 1 WHERE item_key = ?', [itemKey]);
+        } else {
+          this.run('INSERT INTO user_inventory (item_key, quantity) VALUES (?, 1)', [itemKey]);
+        }
+      })();
+      return { success: true, item, remaining: currentCoins - item.price_coins };
+    } catch (e) {
+      return { success: false, message: 'İşlem başarısız: ' + e.message };
     }
-
-    return { success: true, item, remaining: spend.remaining };
   }
 
   getInventory() {
@@ -2297,46 +2365,97 @@ class AppDatabase {
     const recipe = this.get('SELECT * FROM crafting_recipes WHERE id = ?', [recipeId]);
     if (!recipe) return { success: false, message: 'Tarif bulunamadı!' };
 
-    // Check materials
+    // Pre-check outside transaction to avoid unnecessary locks
     const inv1 = this.get('SELECT * FROM user_inventory WHERE item_key = ?', [recipe.item1_key]);
     const needed1 = recipe.item1_key === recipe.item2_key ? 2 : 1;
     if (!inv1 || inv1.quantity < needed1) return { success: false, message: 'Yeterli malzeme yok!' };
-
+    
+    let inv2 = null;
     if (recipe.item1_key !== recipe.item2_key) {
-      const inv2 = this.get('SELECT * FROM user_inventory WHERE item_key = ?', [recipe.item2_key]);
+      inv2 = this.get('SELECT * FROM user_inventory WHERE item_key = ?', [recipe.item2_key]);
       if (!inv2 || inv2.quantity < 1) return { success: false, message: 'Yeterli malzeme yok!' };
-      // Deduct material 2
-      if (inv2.quantity <= 1) this.run('DELETE FROM user_inventory WHERE item_key = ?', [recipe.item2_key]);
-      else this.run('UPDATE user_inventory SET quantity = quantity - 1 WHERE item_key = ?', [recipe.item2_key]);
     }
 
-    // Deduct material 1
-    if (inv1.quantity <= needed1) this.run('DELETE FROM user_inventory WHERE item_key = ?', [recipe.item1_key]);
-    else this.run('UPDATE user_inventory SET quantity = quantity - ? WHERE item_key = ?', [needed1, recipe.item1_key]);
-
-    // Deduct coins
     const stats = this.getUserStats();
     if ((stats.lifecoins || 0) < recipe.coin_cost) return { success: false, message: 'Yeterli coin yok!' };
-    this.run('UPDATE user_stats SET lifecoins = lifecoins - ? WHERE id = 1', [recipe.coin_cost]);
 
-    // Add result item
-    const existing = this.get('SELECT * FROM user_inventory WHERE item_key = ?', [recipe.result_key]);
-    if (existing) {
-      this.run('UPDATE user_inventory SET quantity = quantity + 1 WHERE item_key = ?', [recipe.result_key]);
-    } else {
-      this.run('INSERT INTO user_inventory (item_key, quantity) VALUES (?, 1)', [recipe.result_key]);
+    try {
+      this.db.transaction(() => {
+        // Re-fetch to ensure atomicity
+        if (recipe.item1_key !== recipe.item2_key) {
+           const currentInv2 = this.get('SELECT * FROM user_inventory WHERE item_key = ?', [recipe.item2_key]);
+           if (currentInv2.quantity <= 1) this.run('DELETE FROM user_inventory WHERE item_key = ?', [recipe.item2_key]);
+           else this.run('UPDATE user_inventory SET quantity = quantity - 1 WHERE item_key = ?', [recipe.item2_key]);
+        }
+        
+        const currentInv1 = this.get('SELECT * FROM user_inventory WHERE item_key = ?', [recipe.item1_key]);
+        if (currentInv1.quantity <= needed1) this.run('DELETE FROM user_inventory WHERE item_key = ?', [recipe.item1_key]);
+        else this.run('UPDATE user_inventory SET quantity = quantity - ? WHERE item_key = ?', [needed1, recipe.item1_key]);
+
+        this.run('UPDATE user_stats SET lifecoins = lifecoins - ? WHERE id = 1', [recipe.coin_cost]);
+
+        const existing = this.get('SELECT * FROM user_inventory WHERE item_key = ?', [recipe.result_key]);
+        if (existing) {
+          this.run('UPDATE user_inventory SET quantity = quantity + 1 WHERE item_key = ?', [recipe.result_key]);
+        } else {
+          this.run('INSERT INTO user_inventory (item_key, quantity) VALUES (?, 1)', [recipe.result_key]);
+        }
+      })();
+      
+      const resultItem = this.get('SELECT * FROM shop_items WHERE key = ?', [recipe.result_key]);
+      return { success: true, item: resultItem };
+    } catch (e) {
+      return { success: false, message: 'Craft işlemi başarısız: ' + e.message };
     }
-
-    const resultItem = this.get('SELECT * FROM shop_items WHERE key = ?', [recipe.result_key]);
-    return { success: true, item: resultItem };
   }
 
   resetAllData() {
-    const tables = ['transactions', 'debts', 'budgets', 'xp_history', 'daily_tasks', 'habit_completions', 'pomodoro_sessions', 'habits', 'recurring_transactions', 'impulse_purchases', 'savings_goals', 'savings_deposits', 'report_cards'];
+    const tables = [
+      'transactions', 'debts', 'budgets', 'xp_history', 'daily_tasks',
+      'habit_completions', 'pomodoro_sessions', 'habits', 'recurring_transactions',
+      'impulse_purchases', 'savings_goals', 'savings_deposits', 'report_cards',
+      'active_buffs', 'user_inventory', 'category_budgets', 'journal_entries',
+      'projects', 'subtasks', 'recurring_tasks', 'reviews', 'daily_challenges',
+      'dynamic_quests'
+    ];
     tables.forEach(t => this.db.exec(`DELETE FROM ${t}`));
-    this.run('UPDATE user_stats SET xp = 0, level = 1, current_streak = 0, best_streak = 0, total_tasks_completed = 0, last_active_date = NULL, difficulty_multiplier = 1.0, last_lootbox_level = 0 WHERE id = 1');
+    this.run('UPDATE user_stats SET xp = 0, level = 1, current_streak = 0, best_streak = 0, total_tasks_completed = 0, last_active_date = NULL, difficulty_multiplier = 1.0, last_lootbox_level = 0, lifecoins = 0 WHERE id = 1');
     this.run("UPDATE achievements SET unlocked = 0, unlocked_at = NULL");
     this.generateDailyTasks();
+  }
+
+  // ============ DYNAMIC QUESTS (AI DUNGEON MASTER) ============
+  addDynamicQuest(data) {
+    return this.run('INSERT INTO dynamic_quests (title, description, reward_xp, reward_coins) VALUES (?, ?, ?, ?)',
+      [data.title, data.description, data.reward_xp, data.reward_coins]);
+  }
+
+  getActiveDynamicQuests() {
+    return this.all("SELECT * FROM dynamic_quests WHERE status = 'active' ORDER BY created_at DESC");
+  }
+
+  completeDynamicQuest(id) {
+    const quest = this.get("SELECT * FROM dynamic_quests WHERE id = ? AND status = 'active'", [id]);
+    if (!quest) return { success: false, message: 'Görev bulunamadı veya zaten tamamlandı.' };
+
+    try {
+      this.db.transaction(() => {
+        this.run("UPDATE dynamic_quests SET status = 'completed' WHERE id = ?", [id]);
+        this.run('UPDATE user_stats SET xp = xp + ?, lifecoins = lifecoins + ? WHERE id = 1', [quest.reward_xp, quest.reward_coins]);
+      })();
+
+      // Level check
+      let newLevel = this.getUserStats().level;
+      let newXP = this.getUserStats().xp;
+      while (newXP >= this.xpForLevel(newLevel + 1)) newLevel++;
+      if (newLevel > this.getUserStats().level) {
+          this.run('UPDATE user_stats SET level = ? WHERE id = 1', [newLevel]);
+      }
+
+      return { success: true, xp: quest.reward_xp, coins: quest.reward_coins, newLevel, levelChanged: newLevel > this.getUserStats().level };
+    } catch(e) {
+      return { success: false, message: e.message };
+    }
   }
 }
 

@@ -131,6 +131,29 @@ const SettingsPage = {
         </div>
       </div>
 
+      <!-- AI Danışman -->
+      <div class="card mb-16">
+        <div class="card-title">${icon('bot', 14)} AI Danışman</div>
+        <div class="setting-item">
+          <div class="setting-info">
+            <div class="setting-label">Groq API Key</div>
+            <div class="setting-desc">
+              <a href="https://console.groq.com/keys" target="_blank" style="color:var(--accent);">console.groq.com/keys</a> adresinden ücretsiz alabilirsin (14.400 istek/gün)
+            </div>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:8px;">
+          <input type="password" class="form-input" id="groq-key-input"
+            placeholder="gsk_xxxxxxxxxxxx"
+            value="${settings.groq_api_key ? '••••••••••••••••' : ''}"
+            onfocus="if(this.value.startsWith('•')) this.value=''"
+            onchange="SettingsPage.saveGroqKey(this.value)">
+          <div class="text-sm mt-8" id="groq-key-status" style="color:${settings.groq_api_key ? 'var(--success)' : 'var(--text-muted)'};">
+            ${settings.groq_api_key ? '✓ API key kayıtlı' : 'Henüz API key girilmedi'}
+          </div>
+        </div>
+      </div>
+
       <!-- Update -->
       <div class="card mb-16">
         <div class="card-title">${icon('refresh-cw', 14)} Guncelleme</div>
@@ -306,9 +329,26 @@ const SettingsPage = {
     if (btn) { btn.disabled = false; btn.textContent = 'Kontrol Et'; }
   },
 
+  async saveGroqKey(value) {
+    if (!value || value.startsWith('•')) return;
+    await api.settings.set('groq_api_key', value.trim().replace(/[\r\n\t]/g, ''));
+    const status = document.getElementById('groq-key-status');
+    if (status) {
+      status.textContent = '✓ API key kaydedildi';
+      status.style.color = 'var(--success)';
+    }
+    Toast.show('Groq API key kaydedildi!', 'success');
+  },
+
   installUpdate() {
     if (confirm('Uygulama yeniden baslatilacak ve guncelleme kurulacak. Hazir misin?')) {
-      api.settings.installUpdate();
+      // Kullanıcıya görsel geri bildirim ver, sonra kapat
+      const btn = document.getElementById('update-install-btn');
+      const statusText = document.getElementById('update-status-text');
+      if (btn) { btn.disabled = true; btn.textContent = 'Kuruluyor...'; }
+      if (statusText) statusText.textContent = 'Guncelleme kuruluyor — uygulama kapanip yeniden acilacak...';
+      Toast.show('Guncelleme basliyor, uygulama yeniden acilacak!', 'success');
+      setTimeout(() => api.settings.installUpdate(), 500);
     }
   },
 

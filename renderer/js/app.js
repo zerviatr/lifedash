@@ -81,7 +81,10 @@ const App = {
       ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
       ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
       btn.appendChild(ripple);
-      ripple.addEventListener('animationend', () => ripple.remove());
+      
+      const cleanup = () => { if (ripple.parentNode) ripple.remove(); };
+      ripple.addEventListener('animationend', cleanup, { once: true });
+      setTimeout(cleanup, 1000); // Fallback if animationend doesn't fire
     });
   },
 
@@ -183,6 +186,7 @@ const App = {
       case 'journal': await JournalPage.render(content); break;
       case 'calendar': await CalendarPage.render(content); break;
       case 'settings': await SettingsPage.render(content); break;
+      case 'ai': await AiPage.render(content); break;
     }
 
     // Enter animation

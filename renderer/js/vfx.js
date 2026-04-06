@@ -22,12 +22,21 @@ const VFX = {
   startLoop() {
     if (this.running) return;
     this.running = true;
+    this.rafId = null;
     this.update();
+  },
+
+  stop() {
+    if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
+    this.running = false;
+    this.particles = [];
+    this.ctx && this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   },
 
   update() {
     if (!this.ctx || this.particles.length === 0) {
       this.running = false;
+      this.rafId = null;
       this.ctx && this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       return;
     }

@@ -3,8 +3,6 @@ const FinancePage = {
   currentTab: 'overview',
 
   async render(container) {
-    container.innerHTML = Skeleton.card(4);
-
     container.innerHTML = `
       <div class="page-header">
         <h1 class="page-title">Finans Yönetimi</h1>
@@ -12,21 +10,26 @@ const FinancePage = {
       </div>
 
       <div class="tab-bar">
-        <button class="tab-btn active" data-tab="overview" onclick="FinancePage.switchTab('overview')">Genel Bakış</button>
-        <button class="tab-btn" data-tab="transactions" onclick="FinancePage.switchTab('transactions')">İşlemler</button>
-        <button class="tab-btn" data-tab="debts" onclick="FinancePage.switchTab('debts')">Borçlar</button>
-        <button class="tab-btn" data-tab="varliklar" onclick="FinancePage.switchTab('varliklar')">Net Değer</button>
-        <button class="tab-btn" data-tab="kumbara" onclick="FinancePage.switchTab('kumbara')">Kumbara</button>
-        <button class="tab-btn" data-tab="subscriptions" onclick="FinancePage.switchTab('subscriptions')">Abonelikler</button>
-        <button class="tab-btn" data-tab="budget" onclick="FinancePage.switchTab('budget')">Bütçe Ayarla</button>
+        <button class="tab-btn active" data-tab="overview">Genel Bakış</button>
+        <button class="tab-btn" data-tab="transactions">İşlemler</button>
+        <button class="tab-btn" data-tab="debts">Borçlar</button>
+        <button class="tab-btn" data-tab="kumbara">Kumbara</button>
+        <button class="tab-btn" data-tab="budget">Bütçe Ayarla</button>
       </div>
 
       <div id="finance-content"></div>
     `;
 
-    await this.renderTab('overview');
+    container.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.currentTab = btn.dataset.tab;
+        this.renderTab(btn.dataset.tab);
+      });
+    });
 
-    if (typeof lucide !== 'undefined') lucide.createIcons();
+    await this.renderTab('overview');
   },
 
   switchTab(tab) {
@@ -43,29 +46,24 @@ const FinancePage = {
       case 'overview': await this.renderOverview(content); break;
       case 'transactions': await this.renderTransactions(content); break;
       case 'debts': await this.renderDebts(content); break;
-      case 'varliklar': await this.renderVarliklar(content); break;
       case 'kumbara': await this.renderKumbara(content); break;
-      case 'subscriptions': await this.renderSubscriptions(content); break;
       case 'budget': await this.renderBudgetSetup(content); break;
     }
   },
 
   async renderOverview(container) {
-    const [dailyLimit, debts, transactions, impulses, categorySpending, expensesByCategory] = await Promise.all([
+    const [dailyLimit, debts, transactions, impulses] = await Promise.all([
       api.finance.getDailyLimit(),
       api.finance.getDebts(),
       api.finance.getTransactions({ month: getCurrentMonth() }),
-      api.finance.getImpulses(),
-      api.finance.getCategorySpending(getCurrentMonth()),
-      api.finance.getExpensesByCategory(getCurrentMonth())
+      api.finance.getImpulses()
     ]);
 
     const totalDebt = debts.reduce((s, d) => s + (d.total_amount - d.paid_amount), 0);
     const monthIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const budgetIncome = dailyLimit.hasBudget ? dailyLimit.totalIncome : 0;
-    const totalIncome = monthIncome + budgetIncome;
     const monthExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    const remainingBalance = totalIncome - monthExpense;
+    const totalIncomeCalc = monthIncome + (dailyLimit.hasBudget ? dailyLimit.totalIncome : 0);
+    const netBalance = totalIncomeCalc - monthExpense;
 
     container.innerHTML = `
       <!-- Daily Limit Hero -->
@@ -86,57 +84,21 @@ const FinancePage = {
       <div class="grid-4 mb-16">
         <div class="card" style="text-align:center;">
           <div class="card-title">Aylık Gelir</div>
-          <div class="card-value text-success" style="font-size:24px;">${formatMoney(totalIncome)}</div>
+          <div class="card-value text-success" style="font-size:24px;">${formatMoney(totalIncomeCalc)}</div>
         </div>
-        <div class="card" style="text-align:center; border: 1px solid ${remainingBalance >= 0 ? 'var(--success)' : 'var(--danger)'};">
-          <div class="card-title">Kalan Bakiye</div>
-          <div class="card-value" style="font-size:24px; color: ${remainingBalance >= 0 ? 'var(--success)' : 'var(--danger)'};">${formatMoney(remainingBalance)}</div>
-          <div class="text-sm text-muted">Harcanan: ${formatMoney(monthExpense)}</div>
+        <div class="card" style="text-align:center;">
+          <div class="card-title">Aylık Gider</div>
+          <div class="card-value text-danger" style="font-size:24px;">${formatMoney(monthExpense)}</div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div class="card-title">Nakit Durumu</div>
+          <div class="card-value ${netBalance >= 0 ? 'text-success' : 'text-danger'}" style="font-size:24px;">${netBalance > 0 ? '+' : ''}${formatMoney(netBalance)}</div>
         </div>
         <div class="card" style="text-align:center;">
           <div class="card-title">Toplam Borç</div>
           <div class="card-value text-warning" style="font-size:24px;">${formatMoney(totalDebt)}</div>
         </div>
-        <div class="card" style="text-align:center;">
-          <div class="card-title">Kalan Gün</div>
-          <div class="card-value text-accent" style="font-size:24px;">${dailyLimit.daysLeft}</div>
-        </div>
       </div>
-
-      ${categorySpending.length > 0 ? `
-      <!-- Category Budget Overview -->
-      <div class="card mb-16">
-        <div class="card-title">${icon('bar-chart-2', 14)} Kategori Bütçeleri</div>
-        <div style="display:flex; flex-wrap:wrap; gap:12px;">
-          ${categorySpending.map(cs => {
-            const color = cs.percent > 90 ? 'var(--danger)' : cs.percent > 70 ? 'var(--warning)' : 'var(--success)';
-            return `
-              <div style="flex:1; min-width:180px; padding:10px; border-radius:var(--radius-sm); background:var(--bg-input);">
-                <div class="flex-between" style="margin-bottom:4px;">
-                  <span class="text-sm font-bold">${this.getCategoryLabel(cs.category)}</span>
-                  <span class="text-sm" style="color:${color};">${cs.percent}%</span>
-                </div>
-                <div class="progress-bar" style="height:6px;">
-                  <div class="progress-fill" style="width:${cs.percent}%; background:${color};"></div>
-                </div>
-                <div class="text-sm text-muted" style="margin-top:2px;">${formatMoney(cs.spent)} / ${formatMoney(cs.budget_limit)}</div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      </div>
-      ` : ''}
-
-      ${expensesByCategory.length > 0 ? `
-      <!-- Harcama Pie Chart -->
-      <div class="card mb-16">
-        <div class="card-title">${icon('pie-chart', 14)} Bu Ay Harcama Dağılımı</div>
-        <div style="display:flex; align-items:center; gap:24px; flex-wrap:wrap;">
-          <canvas id="expense-pie-chart" width="180" height="180" style="flex-shrink:0;"></canvas>
-          <div id="pie-legend" style="display:flex; flex-direction:column; gap:6px; flex:1; min-width:180px;"></div>
-        </div>
-      </div>
-      ` : ''}
 
       <!-- Quick Add -->
       <div class="card">
@@ -212,230 +174,6 @@ const FinancePage = {
         </div>
       ` : ''}
     `;
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-
-    // Draw pie chart after DOM is set
-    if (expensesByCategory.length > 0) {
-      this.drawPieChart('expense-pie-chart', 'pie-legend', expensesByCategory);
-    }
-  },
-
-  drawPieChart(canvasId, legendId, data) {
-    const canvas = document.getElementById(canvasId);
-    const legend = document.getElementById(legendId);
-    if (!canvas || !legend) return;
-
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const cx = W / 2, cy = H / 2, r = Math.min(W, H) / 2 - 8;
-    const total = data.reduce((s, d) => s + d.total, 0);
-
-    const palette = [
-      '#7c3aed','#4f46e5','#0ea5e9','#10b981','#f59e0b',
-      '#ef4444','#ec4899','#8b5cf6','#06b6d4','#84cc16'
-    ];
-
-    ctx.clearRect(0, 0, W, H);
-
-    let startAngle = -Math.PI / 2;
-    data.forEach((d, i) => {
-      const slice = (d.total / total) * 2 * Math.PI;
-      const color = palette[i % palette.length];
-
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, r, startAngle, startAngle + slice);
-      ctx.closePath();
-      ctx.fillStyle = color;
-      ctx.fill();
-
-      // Gap between slices
-      ctx.strokeStyle = 'var(--bg-card, #1a1a2e)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      startAngle += slice;
-    });
-
-    // Center hole (donut)
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.5, 0, 2 * Math.PI);
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-card') || '#16213e';
-    ctx.fill();
-
-    // Legend
-    legend.innerHTML = data.map((d, i) => `
-      <div style="display:flex; align-items:center; gap:8px;">
-        <div style="width:12px; height:12px; border-radius:3px; background:${palette[i % palette.length]}; flex-shrink:0;"></div>
-        <span class="text-sm" style="flex:1;">${this.getCategoryLabel(d.category)}</span>
-        <span class="text-sm font-bold">${formatMoney(d.total)}</span>
-        <span class="text-sm text-muted">${Math.round((d.total / total) * 100)}%</span>
-      </div>
-    `).join('');
-  },
-
-  async renderVarliklar(container) {
-    const nw = await api.finance.getNetWorth();
-    const { totalAssets, totalDebts, netWorth, assets } = nw;
-
-    const assetTypes = {
-      savings:     { label: 'Birikim',      emoji: '🏦' },
-      investment:  { label: 'Yatırım',      emoji: '📈' },
-      real_estate: { label: 'Gayrimenkul',  emoji: '🏠' },
-      vehicle:     { label: 'Araç',         emoji: '🚗' },
-      crypto:      { label: 'Kripto',       emoji: '₿' },
-      other:       { label: 'Diğer',        emoji: '📦' },
-    };
-
-    // Group by type
-    const grouped = {};
-    assets.forEach(a => {
-      if (!grouped[a.type]) grouped[a.type] = [];
-      grouped[a.type].push(a);
-    });
-
-    container.innerHTML = `
-      <!-- Net Worth Hero -->
-      <div class="card mb-16" style="text-align:center; background: linear-gradient(135deg, var(--bg-card) 0%, rgba(109,40,217,0.15) 100%); border: 1px solid rgba(109,40,217,0.3);">
-        <div class="text-sm text-muted mb-8">Net Değerim</div>
-        <div style="font-size:36px; font-weight:800; color:${netWorth >= 0 ? 'var(--success)' : 'var(--danger)'};">${formatMoney(netWorth)}</div>
-        <div style="display:flex; justify-content:center; gap:32px; margin-top:16px;">
-          <div>
-            <div class="text-sm text-muted">Toplam Varlık</div>
-            <div class="font-bold text-success">${formatMoney(totalAssets)}</div>
-          </div>
-          <div style="width:1px; background:var(--border);"></div>
-          <div>
-            <div class="text-sm text-muted">Toplam Borç</div>
-            <div class="font-bold text-danger">-${formatMoney(totalDebts)}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Add Asset Button -->
-      <div class="flex-between mb-16">
-        <div class="card-title" style="margin:0;">${icon('landmark', 14)} Varlıklarım</div>
-        <button class="btn btn-primary btn-sm" onclick="FinancePage.showAddAssetModal()">+ Varlık Ekle</button>
-      </div>
-
-      ${assets.length === 0 ? `
-        <div class="empty-state">
-          <div class="empty-icon">🏦</div>
-          <div class="empty-title">Henüz varlık eklenmedi</div>
-          <div class="empty-desc">Birikim, yatırım veya mülklerini ekleyerek net değerini takip et</div>
-        </div>
-      ` : Object.entries(grouped).map(([type, items]) => {
-        const typeInfo = assetTypes[type] || { label: type, emoji: '📦' };
-        const typeTotal = items.reduce((s, a) => s + a.value, 0);
-        return `
-          <div class="card mb-12">
-            <div class="flex-between mb-12">
-              <div class="card-title" style="margin:0;">${typeInfo.emoji} ${typeInfo.label}</div>
-              <div class="font-bold text-success">${formatMoney(typeTotal)}</div>
-            </div>
-            ${items.map(a => `
-              <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border);">
-                <div>
-                  <div class="font-bold">${a.name}</div>
-                  ${a.notes ? `<div class="text-sm text-muted">${a.notes}</div>` : ''}
-                </div>
-                <div style="display:flex; align-items:center; gap:12px;">
-                  <div class="font-bold">${formatMoney(a.value)}</div>
-                  <button class="btn btn-ghost btn-sm" onclick="FinancePage.showEditAssetModal(${a.id}, '${a.name.replace(/'/g, "\\'")}', '${a.type}', ${a.value}, '${(a.notes || '').replace(/'/g, "\\'")}')">Düzenle</button>
-                  <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="FinancePage.deleteAsset(${a.id})">Sil</button>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        `;
-      }).join('')}
-    `;
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-  },
-
-  showAddAssetModal() {
-    const assetTypeOptions = `
-      <option value="savings">🏦 Birikim</option>
-      <option value="investment">📈 Yatırım</option>
-      <option value="real_estate">🏠 Gayrimenkul</option>
-      <option value="vehicle">🚗 Araç</option>
-      <option value="crypto">₿ Kripto</option>
-      <option value="other">📦 Diğer</option>
-    `;
-    showModal('Varlık Ekle', `
-      <div class="form-group">
-        <label class="form-label">Varlık Adı</label>
-        <input type="text" class="form-input" id="asset-name" placeholder="örn: Garanti Banka Hesabı">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Tür</label>
-        <select class="form-select" id="asset-type">${assetTypeOptions}</select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Değer (₺)</label>
-        <input type="number" class="form-input" id="asset-value" step="0.01" placeholder="0.00">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Not (opsiyonel)</label>
-        <input type="text" class="form-input" id="asset-notes" placeholder="örn: BIST100 hisse senedi">
-      </div>
-    `, async (overlay) => {
-      const name  = document.getElementById('asset-name').value.trim();
-      const type  = document.getElementById('asset-type').value;
-      const value = parseFloat(document.getElementById('asset-value').value);
-      const notes = document.getElementById('asset-notes').value.trim();
-      if (!name) { Toast.show('Varlık adı gir!', 'error'); return; }
-      if (!value || isNaN(value) || value < 0) { Toast.show('Geçerli değer gir!', 'error'); return; }
-      await api.finance.addAsset({ name, type, value, notes });
-      overlay.remove();
-      Toast.show('Varlık eklendi!', 'success');
-      await this.renderTab('varliklar');
-    });
-  },
-
-  showEditAssetModal(id, name, type, value, notes) {
-    const opts = ['savings','investment','real_estate','vehicle','crypto','other'];
-    const labels = { savings:'🏦 Birikim', investment:'📈 Yatırım', real_estate:'🏠 Gayrimenkul', vehicle:'🚗 Araç', crypto:'₿ Kripto', other:'📦 Diğer' };
-    showModal('Varlık Düzenle', `
-      <div class="form-group">
-        <label class="form-label">Varlık Adı</label>
-        <input type="text" class="form-input" id="asset-name" value="${name}">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Tür</label>
-        <select class="form-select" id="asset-type">
-          ${opts.map(o => `<option value="${o}" ${o === type ? 'selected' : ''}>${labels[o]}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Değer (₺)</label>
-        <input type="number" class="form-input" id="asset-value" step="0.01" value="${value}">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Not</label>
-        <input type="text" class="form-input" id="asset-notes" value="${notes}">
-      </div>
-    `, async (overlay) => {
-      const n = document.getElementById('asset-name').value.trim();
-      const t = document.getElementById('asset-type').value;
-      const v = parseFloat(document.getElementById('asset-value').value);
-      const nt = document.getElementById('asset-notes').value.trim();
-      if (!n) { Toast.show('Varlık adı gir!', 'error'); return; }
-      if (isNaN(v) || v < 0) { Toast.show('Geçerli değer gir!', 'error'); return; }
-      await api.finance.updateAsset(id, { name: n, type: t, value: v, notes: nt });
-      overlay.remove();
-      Toast.show('Varlık güncellendi!', 'success');
-      await this.renderTab('varliklar');
-    });
-  },
-
-  async deleteAsset(id) {
-    if (!confirm('Bu varlığı silmek istediğine emin misin?')) return;
-    await api.finance.deleteAsset(id);
-    Toast.show('Varlık silindi', 'success');
-    await this.renderTab('varliklar');
   },
 
   async quickAddExpense() {
@@ -443,38 +181,35 @@ const FinancePage = {
     const category = document.getElementById('quick-category').value;
     const desc = document.getElementById('quick-desc').value;
 
-    if (!amount || isNaN(amount) || amount <= 0) {
+    if (!amount || amount <= 0) {
       Toast.show('Geçerli bir tutar gir!', 'error');
       return;
     }
 
-    try {
-      await api.finance.addTransaction({
-        type: 'expense',
-        amount,
-        category,
-        description: desc,
-        date: getTodayStr()
-      });
+    await api.finance.addTransaction({
+      type: 'expense',
+      amount,
+      category,
+      description: desc,
+      date: getTodayStr()
+    });
 
-      // Clear inputs
-      document.getElementById('quick-amount').value = '';
-      document.getElementById('quick-desc').value = '';
+    // Clear inputs
+    document.getElementById('quick-amount').value = '';
+    document.getElementById('quick-desc').value = '';
 
-      // Refresh all finance data
-      const newLimit = await api.finance.getDailyLimit();
-      const pct = newLimit.dailyLimit > 0 ? Math.round((newLimit.todaySpent / newLimit.dailyLimit) * 100) : 0;
-      Toast.show(
-        pct > 100
-          ? `⚠️ Limit aşıldı! Kalan: ${formatMoney(newLimit.todayRemaining)}`
-          : `✅ ${formatMoney(amount)} eklendi • Kalan: ${formatMoney(newLimit.todayRemaining)}`,
-        pct > 100 ? 'error' : 'success'
-      );
-      await this.afterFinanceChange();
-    } catch (error) {
-      console.error(error);
-      Toast.show('Harcama kaydedilirken hata oluştu!', 'error');
-    }
+    // Live-update balance numbers (no full tab re-render)
+    const newLimit = await api.finance.getDailyLimit();
+    this.updateLiveBalance(newLimit);
+
+    const pct = newLimit.dailyLimit > 0 ? Math.round((newLimit.todaySpent / newLimit.dailyLimit) * 100) : 0;
+    Toast.show(
+      pct > 100
+        ? `⚠️ Limit aşıldı! Kalan: ${formatMoney(newLimit.todayRemaining)}`
+        : `✅ ${formatMoney(amount)} eklendi • Kalan: ${formatMoney(newLimit.todayRemaining)}`,
+      pct > 100 ? 'error' : 'success'
+    );
+    App.loadUserStats();
   },
 
   updateLiveBalance(limit) {
@@ -488,14 +223,6 @@ const FinancePage = {
       bar.style.width = pct + '%';
       bar.style.background = pct > 90 ? 'var(--danger)' : pct > 70 ? 'var(--warning)' : 'var(--success)';
     }
-  },
-
-  async afterFinanceChange() {
-    await this.renderTab(this.currentTab);
-    const newLimit = await api.finance.getDailyLimit();
-    this.updateLiveBalance(newLimit);
-    App.loadUserStats();
-    PubSub.publish('balance:updated');
   },
 
   async showImpulseModal() {
@@ -514,7 +241,7 @@ const FinancePage = {
     document.getElementById('quick-desc').value = '';
 
     Toast.show(`💭 ${formatMoney(amount)} dürtü listesine eklendi. Yarın tekrar sor!`, 'warning');
-    await this.afterFinanceChange();
+    await this.renderTab(this.currentTab);
   },
 
   async resolveImpulse(id, confirm) {
@@ -525,7 +252,10 @@ const FinancePage = {
       } else {
         Toast.show(`🧊 Dürtü engellendi! +${result.xp} XP kazandın!`, 'xp');
       }
-      await this.afterFinanceChange();
+      const newLimit = await api.finance.getDailyLimit();
+      this.updateLiveBalance(newLimit);
+      App.loadUserStats();
+      await this.renderTab(this.currentTab);
     }
   },
 
@@ -556,7 +286,7 @@ const FinancePage = {
                   <td>${this.getCategoryLabel(t.category)}</td>
                   <td>${t.description || '—'}</td>
                   <td class="font-bold ${t.type === 'income' ? 'text-success' : 'text-danger'}">${t.type === 'income' ? '+' : '-'}${formatMoney(t.amount)}</td>
-                  <td><button class="btn btn-ghost btn-sm" onclick="FinancePage.deleteTransaction(${t.id})">${icon('trash-2', 14)}</button></td>
+                  <td><button class="btn btn-ghost btn-sm" onclick="FinancePage.deleteTransaction(${t.id})">🗑️</button></td>
                 </tr>
               `).join('')}
             </tbody>
@@ -569,8 +299,6 @@ const FinancePage = {
         </div>
       `}
     `;
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
   showAddTransactionModal(type) {
@@ -606,7 +334,7 @@ const FinancePage = {
       </div>
     `, async (overlay) => {
       const amount = parseFloat(document.getElementById('tx-amount').value);
-      if (!amount || isNaN(amount) || amount <= 0) { Toast.show('Geçerli tutar gir!', 'error'); return; }
+      if (!amount || amount <= 0) { Toast.show('Geçerli tutar gir!', 'error'); return; }
 
       await api.finance.addTransaction({
         type,
@@ -618,24 +346,18 @@ const FinancePage = {
 
       overlay.remove();
       Toast.show(`${type === 'income' ? 'Gelir' : 'Gider'} eklendi: ${formatMoney(amount)}`, 'success');
-      await this.afterFinanceChange();
+      await this.renderTab(this.currentTab);
     });
   },
 
   async deleteTransaction(id) {
     await api.finance.deleteTransaction(id);
     Toast.show('İşlem silindi', 'success');
-    await this.afterFinanceChange();
+    await this.renderTab(this.currentTab);
   },
 
   async renderDebts(container) {
     const debts = await api.finance.getDebts();
-
-    // Fetch forecasts for all debts
-    const forecasts = {};
-    await Promise.all(debts.map(async d => {
-      forecasts[d.id] = await api.finance.getDebtForecast(d.id);
-    }));
 
     container.innerHTML = `
       <div class="flex-between mb-16">
@@ -648,16 +370,11 @@ const FinancePage = {
           ${debts.map(d => {
             const remaining = d.total_amount - d.paid_amount;
             const percent = (d.paid_amount / d.total_amount) * 100;
-            const forecast = forecasts[d.id];
-            const forecastText = forecast && forecast.months !== null && forecast.months !== undefined
-              ? (forecast.months === 0 ? 'Ödeme tamamlandı!' : `~${forecast.months} ay kaldı`)
-              : (forecast && forecast.message ? forecast.message : '');
-            const urgencyColor = d.due_date && new Date(d.due_date) < new Date(Date.now() + 7 * 86400000) ? 'var(--danger)' : '';
             return `
               <div class="debt-card">
                 <div class="debt-header">
                   <span class="debt-name">${d.name}</span>
-                  <span class="debt-due" ${urgencyColor ? `style="color:${urgencyColor};"` : ''}>${d.due_date ? `Vade: ${d.due_date}` : ''}</span>
+                  <span class="debt-due">${d.due_date ? `Vade: ${d.due_date}` : ''}</span>
                 </div>
                 <div class="debt-progress">
                   <div class="progress-bar">
@@ -668,7 +385,7 @@ const FinancePage = {
                     <span>Kalan: ${formatMoney(remaining)}</span>
                   </div>
                 </div>
-                ${d.monthly_payment > 0 ? `<div class="text-sm text-muted">Aylık: ${formatMoney(d.monthly_payment)}${forecastText ? ` • ${forecastText}` : ''}</div>` : ''}
+                ${d.monthly_payment > 0 ? `<div class="text-sm text-muted">Aylık: ${formatMoney(d.monthly_payment)}</div>` : ''}
                 <div style="display:flex; gap:8px; margin-top:10px;">
                   <button class="btn btn-success btn-sm" onclick="FinancePage.showPayDebtModal(${d.id}, ${remaining})">Ödeme Yap</button>
                   <button class="btn btn-ghost btn-sm" onclick="FinancePage.deleteDebt(${d.id})">Sil</button>
@@ -684,8 +401,6 @@ const FinancePage = {
         </div>
       `}
     `;
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
   showAddDebtModal() {
@@ -734,7 +449,7 @@ const FinancePage = {
 
       overlay.remove();
       Toast.show('Borç eklendi', 'success');
-      await this.afterFinanceChange();
+      await this.renderTab(this.currentTab);
     });
   },
 
@@ -755,21 +470,20 @@ const FinancePage = {
       }
 
       overlay.remove();
-      await this.afterFinanceChange();
+      await this.renderTab(this.currentTab);
     });
   },
 
   async deleteDebt(id) {
     await api.finance.deleteDebt(id);
     Toast.show('Borç silindi', 'success');
-    await this.afterFinanceChange();
+    await this.renderTab(this.currentTab);
   },
 
   async renderBudgetSetup(container) {
-    const [budget, recurrings, categorySpending] = await Promise.all([
+    const [budget, recurrings] = await Promise.all([
       api.finance.getBudget(getCurrentMonth()),
-      api.finance.getRecurrings(),
-      api.finance.getCategorySpending(getCurrentMonth())
+      api.finance.getRecurrings()
     ]);
 
     const periodLabel = (r) => {
@@ -796,40 +510,6 @@ const FinancePage = {
         <button class="btn btn-primary" onclick="FinancePage.saveBudget()">Bütçeyi Kaydet</button>
       </div>
 
-      <!-- Category Budgets -->
-      <div class="card mt-20">
-        <div class="flex-between mb-16">
-          <div class="card-title" style="margin:0;">${icon('bar-chart-2', 14)} Kategori Bütçeleri</div>
-          <button class="btn btn-ghost btn-sm" onclick="FinancePage.showCategoryBudgetModal()">+ Ekle</button>
-        </div>
-        ${categorySpending.length > 0 ? `
-          <div style="display:flex; flex-direction:column; gap:12px;">
-            ${categorySpending.map(cs => {
-              const color = cs.percent > 90 ? 'var(--danger)' : cs.percent > 70 ? 'var(--warning)' : 'var(--success)';
-              return `
-                <div style="padding:10px 0; border-bottom:1px solid var(--border);">
-                  <div class="flex-between" style="margin-bottom:6px;">
-                    <span class="font-bold">${this.getCategoryLabel(cs.category)}</span>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                      <span class="text-sm">${formatMoney(cs.spent)} / ${formatMoney(cs.budget_limit)}</span>
-                      <button class="btn btn-ghost btn-sm" style="padding:2px 6px; font-size:11px;" onclick="FinancePage.removeCategoryBudget('${cs.category}')">✕</button>
-                    </div>
-                  </div>
-                  <div class="progress-bar" style="height:8px;">
-                    <div class="progress-fill" style="width:${cs.percent}%; background:${color};"></div>
-                  </div>
-                  <div class="text-sm text-muted" style="margin-top:4px;">Kalan: ${formatMoney(cs.remaining)} (${cs.percent}%)</div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        ` : `
-          <div class="text-sm text-muted" style="padding:16px 0;">
-            Kategori bütçesi eklenmemiş. Her kategoriye ayrı limit koyarak harcamalarını kontrol et!
-          </div>
-        `}
-      </div>
-
       <!-- Recurring Transactions -->
       <div class="card mt-20">
         <div class="flex-between mb-16">
@@ -851,7 +531,7 @@ const FinancePage = {
                     <td>${r.description || '—'}</td>
                     <td class="font-bold ${r.type === 'income' ? 'text-success' : 'text-danger'}">${r.type === 'income' ? '+' : '-'}${formatMoney(r.amount)}</td>
                     <td class="text-muted text-sm">${periodLabel(r)}</td>
-                    <td><button class="btn btn-ghost btn-sm" onclick="FinancePage.deleteRecurring(${r.id})">${icon('trash-2', 14)}</button></td>
+                    <td><button class="btn btn-ghost btn-sm" onclick="FinancePage.deleteRecurring(${r.id})">🗑️</button></td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -864,8 +544,6 @@ const FinancePage = {
         `}
       </div>
     `;
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
   async saveBudget() {
@@ -883,7 +561,7 @@ const FinancePage = {
     });
 
     Toast.show('Bütçe kaydedildi! Günlük limitin hesaplandı.', 'success');
-    await this.afterFinanceChange();
+    App.loadUserStats();
   },
 
   showAddRecurringModal() {
@@ -959,7 +637,7 @@ const FinancePage = {
 
       overlay.remove();
       Toast.show('Tekrarlayan işlem eklendi!', 'success');
-      await this.afterFinanceChange();
+      await this.renderTab('budget');
     });
   },
 
@@ -975,165 +653,14 @@ const FinancePage = {
     if (!confirm('Bu tekrarlayan işlemi silmek istediğine emin misin?')) return;
     await api.finance.deleteRecurring(id);
     Toast.show('Tekrarlayan işlem silindi', 'success');
-    await this.afterFinanceChange();
-  },
-
-  // ============ SUBSCRIPTIONS ============
-  async renderSubscriptions(container) {
-    const [subs, totals] = await Promise.all([
-      api.finance.getSubscriptions(),
-      api.finance.getSubscriptionTotal()
-    ]);
-
-    container.innerHTML = `
-      <div class="flex-between mb-16">
-        <div class="card-title" style="margin:0;">Abonelik Yönetimi</div>
-        <button class="btn btn-primary btn-sm" onclick="FinancePage.showAddSubscriptionModal()">+ Abonelik Ekle</button>
-      </div>
-
-      <!-- Summary -->
-      <div class="grid-2 mb-16">
-        <div class="card" style="text-align:center;">
-          <div class="card-title">Aylık Abonelik Yükü</div>
-          <div class="card-value text-danger" style="font-size:28px;">${formatMoney(totals.monthly)}</div>
-        </div>
-        <div class="card" style="text-align:center;">
-          <div class="card-title">Yıllık Maliyet</div>
-          <div class="card-value text-warning" style="font-size:28px;">${formatMoney(totals.yearly)}</div>
-        </div>
-      </div>
-
-      ${subs.length > 0 ? `
-        <div class="grid-2">
-          ${subs.map(s => `
-            <div class="card" style="border-left: 4px solid var(--accent);">
-              <div class="flex-between mb-8">
-                <div>
-                  <span class="font-bold" style="font-size:16px;">${s.service_name || s.description || 'Abonelik'}</span>
-                  <span class="text-sm text-muted" style="margin-left:8px;">${this.getCategoryLabel(s.category)}</span>
-                </div>
-                <button class="btn btn-ghost btn-sm" onclick="FinancePage.deleteSubscription(${s.id})">${icon('trash-2', 14)}</button>
-              </div>
-              <div class="flex-between">
-                <span class="card-value text-danger" style="font-size:20px;">${formatMoney(s.amount)}<span class="text-sm text-muted">/ay</span></span>
-                <span class="text-sm text-muted">Her ayın ${s.day_of_month}. günü</span>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      ` : `
-        <div class="empty-state">
-          <div class="empty-state-icon">📺</div>
-          <div class="empty-state-text">Henüz abonelik eklenmemiş. Netflix, Spotify gibi aboneliklerini ekle!</div>
-        </div>
-      `}
-    `;
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-  },
-
-  showAddSubscriptionModal() {
-    showModal('Abonelik Ekle', `
-      <div class="form-group">
-        <label class="form-label">Servis Adı</label>
-        <input type="text" class="form-input" id="sub-name" placeholder="Örn: Netflix, Spotify, YouTube Premium">
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Aylık Ücret (₺)</label>
-          <input type="number" class="form-input" id="sub-amount" step="0.01" min="0.01" placeholder="0.00">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Ödeme Günü</label>
-          <input type="number" class="form-input" id="sub-day" value="1" min="1" max="28">
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Kategori</label>
-        <select class="form-select" id="sub-category">
-          <option value="eglence">🎮 Eğlence</option>
-          <option value="egitim">📚 Eğitim</option>
-          <option value="fatura">📱 Dijital Servis</option>
-          <option value="saglik">💊 Sağlık</option>
-          <option value="diger">📦 Diğer</option>
-        </select>
-      </div>
-    `, async (overlay) => {
-      const name = document.getElementById('sub-name').value.trim();
-      const amount = parseFloat(document.getElementById('sub-amount').value);
-      if (!name) { Toast.show('Servis adı gir!', 'error'); return; }
-      if (!amount || amount <= 0) { Toast.show('Geçerli bir tutar gir!', 'error'); return; }
-
-      await api.finance.addSubscription({
-        service_name: name,
-        amount,
-        category: document.getElementById('sub-category').value,
-        day_of_month: parseInt(document.getElementById('sub-day').value) || 1
-      });
-      overlay.remove();
-      Toast.show(`${name} aboneliği eklendi!`, 'success');
-      await this.afterFinanceChange();
-    });
-  },
-
-  async deleteSubscription(id) {
-    if (!confirm('Bu aboneliği silmek istediğine emin misin?')) return;
-    await api.finance.deleteRecurring(id);
-    Toast.show('Abonelik silindi', 'success');
-    await this.afterFinanceChange();
-  },
-
-  // ============ CATEGORY BUDGETS ============
-  showCategoryBudgetModal() {
-    showModal('Kategori Bütçesi Ekle', `
-      <div class="form-group">
-        <label class="form-label">Kategori</label>
-        <select class="form-select" id="catbudget-category">
-          <option value="yemek">🍔 Yemek</option>
-          <option value="ulasim">🚌 Ulaşım</option>
-          <option value="market">🛒 Market</option>
-          <option value="eglence">🎮 Eğlence</option>
-          <option value="fatura">📱 Fatura</option>
-          <option value="saglik">💊 Sağlık</option>
-          <option value="giyim">👕 Giyim</option>
-          <option value="egitim">📚 Eğitim</option>
-          <option value="kira">🏠 Kira</option>
-          <option value="diger">📦 Diğer</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Aylık Limit (₺)</label>
-        <input type="number" class="form-input" id="catbudget-limit" step="0.01" min="1" placeholder="Örn: 500">
-      </div>
-    `, async (overlay) => {
-      const category = document.getElementById('catbudget-category').value;
-      const limit = parseFloat(document.getElementById('catbudget-limit').value);
-      if (!limit || limit <= 0) { Toast.show('Geçerli bir limit gir!', 'error'); return; }
-      await api.finance.setCategoryBudget(getCurrentMonth(), category, limit);
-      overlay.remove();
-      Toast.show(`${this.getCategoryLabel(category)} bütçesi ayarlandı!`, 'success');
-      await this.afterFinanceChange();
-    });
-  },
-
-  async removeCategoryBudget(category) {
-    if (!confirm('Bu kategori bütçesini silmek istediğine emin misin?')) return;
-    await api.finance.deleteCategoryBudget(getCurrentMonth(), category);
-    Toast.show('Kategori bütçesi silindi', 'success');
-    await this.afterFinanceChange();
+    await this.renderTab('budget');
   },
 
   // ============ KUMBARA (SAVINGS GOALS) ============
   async renderKumbara(container) {
-    const goals = await api.savings.getGoals();
+    const goals = await api.finance.getSavingsGoals();
     const active = goals.filter(g => !g.is_completed);
     const completed = goals.filter(g => g.is_completed);
-
-    // Fetch estimated completion for active goals
-    const estimates = {};
-    await Promise.all(active.map(async g => {
-      estimates[g.id] = await api.savings.getEstimatedCompletion(g.id);
-    }));
 
     container.innerHTML = `
       <div class="flex-between mb-16">
@@ -1145,11 +672,6 @@ const FinancePage = {
         <div class="grid-2">
           ${active.map(g => {
             const pct = Math.min(100, Math.round((g.current_amount / g.target_amount) * 100));
-            const progressColor = pct < 30 ? 'var(--danger)' : pct < 70 ? 'var(--warning)' : 'var(--success)';
-            const est = estimates[g.id];
-            const estText = est && est.months !== null && est.months !== undefined
-              ? (est.months === 0 ? 'Hedefe ulaşıldı!' : `~${est.months} ay kaldı`)
-              : (est && est.message ? est.message : '');
             return `
               <div class="card savings-goal-card" style="border-left: 4px solid ${g.color};">
                 <div class="flex-between mb-16">
@@ -1157,17 +679,17 @@ const FinancePage = {
                     <span style="font-size:24px; margin-right:8px;">${g.icon}</span>
                     <span class="font-bold" style="font-size:18px;">${g.name}</span>
                   </div>
-                  <button class="btn btn-ghost btn-sm" onclick="FinancePage.deleteSavingsGoal(${g.id})">${icon('trash-2', 14)}</button>
+                  <button class="btn btn-ghost btn-sm" onclick="FinancePage.deleteSavingsGoal(${g.id})">🗑️</button>
                 </div>
                 <div class="flex-between text-sm mb-8">
                   <span>${formatMoney(g.current_amount)}</span>
                   <span class="text-muted">${formatMoney(g.target_amount)}</span>
                 </div>
                 <div class="progress-bar" style="height:12px;">
-                  <div class="progress-fill" style="width:${pct}%; background:${progressColor};"></div>
+                  <div class="progress-fill" style="width:${pct}%; background:${g.color};"></div>
                 </div>
                 <div class="flex-between mt-8">
-                  <span class="text-sm text-muted">${pct}% tamamlandı${estText ? ` • ${estText}` : ''}</span>
+                  <span class="text-sm text-muted">${pct}% tamamlandı</span>
                   <button class="btn btn-success btn-sm" onclick="FinancePage.showDepositModal(${g.id}, ${g.target_amount - g.current_amount})">+ Para Yatır</button>
                 </div>
               </div>
@@ -1199,8 +721,6 @@ const FinancePage = {
         </div>
       ` : ''}
     `;
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
   showAddGoalModal() {
@@ -1219,7 +739,9 @@ const FinancePage = {
         <div id="goal-icons-container" style="display:flex; gap:8px; flex-wrap:wrap;">
           ${icons.map((ic, i) => `
             <div class="theme-swatch ${i === 0 ? 'active' : ''}" style="width:40px; height:40px; font-size:20px; cursor:pointer;"
-              onclick="document.querySelectorAll('#goal-icons-container .theme-swatch').forEach(s=>s.classList.remove('active')); this.classList.add('active'); document.getElementById('goal-icon-val').value='${ic}';">${ic}</div>
+              onclick="document.querySelectorAll('#goal-icons-container .theme-swatch').forEach(s=>s.classList.remove('active')); this.classList.add('active'); document.getElementById('goal-icon-val').value='${ic}';">
+              ${ic}
+            </div>
           `).join('')}
         </div>
         <input type="hidden" id="goal-icon-val" value="🎯">
@@ -1229,7 +751,7 @@ const FinancePage = {
       const amount = parseFloat(document.getElementById('goal-amount').value);
       if (!name || !amount || amount <= 0) { Toast.show('Ad ve tutar gerekli!', 'error'); return; }
 
-      await api.savings.addGoal({
+      await api.finance.addSavingsGoal({
         name,
         target_amount: amount,
         icon: document.getElementById('goal-icon-val').value
@@ -1238,7 +760,8 @@ const FinancePage = {
       overlay.remove();
       SoundManager.play('xpGain');
       Toast.show('Tasarruf hedefi oluşturuldu! +5 XP', 'xp');
-      await this.afterFinanceChange();
+      App.loadUserStats();
+      await this.renderTab('kumbara');
     });
   },
 
@@ -1252,7 +775,7 @@ const FinancePage = {
       const amount = parseFloat(document.getElementById('deposit-amount').value);
       if (!amount || amount <= 0) { Toast.show('Geçerli tutar gir!', 'error'); return; }
 
-      const result = await api.savings.deposit(goalId, amount);
+      const result = await api.finance.depositSavings(goalId, amount);
       if (result) {
         overlay.remove();
         SoundManager.play('deposit');
@@ -1261,16 +784,17 @@ const FinancePage = {
           SoundManager.play('achievementUnlock');
           Toast.show('Hedef tamamlandı! Tebrikler!', 'levelup');
         }
-        await this.afterFinanceChange();
+        App.loadUserStats();
+        await this.renderTab('kumbara');
       }
     });
   },
 
   async deleteSavingsGoal(id) {
     if (!confirm('Bu tasarruf hedefini silmek istediğine emin misin?')) return;
-    await api.savings.deleteGoal(id);
+    await api.finance.deleteSavingsGoal(id);
     Toast.show('Hedef silindi', 'success');
-    await this.afterFinanceChange();
+    await this.renderTab('kumbara');
   },
 
   getCategoryLabel(cat) {

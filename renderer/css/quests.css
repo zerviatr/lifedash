@@ -1,0 +1,192 @@
+/* renderer/css/quests.css */
+
+.quest-board {
+  position: relative;
+  border-radius: 12px;
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 100px rgba(99, 102, 241, 0.05);
+  padding: 24px;
+  overflow: hidden;
+  min-height: 400px;
+}
+
+.quest-board::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: 
+    linear-gradient(rgba(99, 102, 241, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: none;
+  opacity: 0.2;
+}
+
+.quest-board::after {
+  content: '';
+  position: absolute;
+  top: -2px; left: -2px; right: -2px; bottom: -2px;
+  background: linear-gradient(45deg, var(--accent) 0%, transparent 40%, transparent 60%, var(--danger) 100%);
+  z-index: -1;
+  border-radius: 14px;
+  opacity: 0.3;
+  animation: borderGlow 6s linear infinite;
+}
+
+@keyframes borderGlow {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+.quest-card {
+  position: relative;
+  background: rgba(10, 10, 15, 0.7);
+  border-left: 4px solid var(--accent);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 4px 12px 12px 4px;
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quest-card:hover {
+  transform: translateX(8px);
+  box-shadow: -4px 4px 15px rgba(99, 102, 241, 0.2);
+  background: rgba(15, 15, 20, 0.8);
+  border-left-color: var(--success);
+}
+
+.quest-card .quest-title {
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 1.2rem;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.quest-card .quest-title::before {
+  content: '[ DM ]';
+  font-size: 0.7rem;
+  color: var(--accent);
+  margin-right: 8px;
+  opacity: 0.7;
+  vertical-align: middle;
+}
+
+.quest-card .quest-desc {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.7);
+  font-style: italic;
+  border-left: 2px dashed rgba(255,255,255,0.1);
+  padding-left: 12px;
+  margin-left: 4px;
+}
+
+.quest-rewards {
+  display: flex;
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.reward-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.reward-xp { color: var(--success); box-shadow: 0 0 10px rgba(16, 185, 129, 0.1); }
+.reward-coins { color: var(--warning); box-shadow: 0 0 10px rgba(245, 158, 11, 0.1); }
+
+.quest-complete-btn {
+  align-self: flex-end;
+  background: transparent;
+  color: var(--success);
+  border: 1px solid var(--success);
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.quest-complete-btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.2), transparent);
+  transition: all 0.4s;
+}
+
+.quest-complete-btn:hover {
+  background: rgba(16, 185, 129, 0.1);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+}
+
+.quest-complete-btn:hover::before {
+  left: 100%;
+}
+
+.dm-controls {
+  text-align: center;
+  margin-bottom: 24px;
+  position: relative;
+}
+
+.dm-controls .prompt-btn {
+  background: linear-gradient(135deg, var(--accent), #4f46e5);
+  border: none;
+  font-size: 1rem;
+  padding: 12px 24px;
+  font-weight: 800;
+  color: #fff;
+  border-radius: 30px;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.dm-controls .prompt-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+}
+
+.dm-controls .prompt-btn:active {
+  transform: translateY(1px);
+}
+
+.xp-particle {
+  position: fixed;
+  pointer-events: none;
+  font-weight: 900;
+  font-family: 'Inter', sans-serif;
+  color: var(--success);
+  text-shadow: 0 0 10px var(--success), 0 0 20px rgba(16,185,129,0.5);
+  animation: floatUp 1.2s cubic-bezier(0.2, 1, 0.3, 1) forwards;
+  z-index: 99999;
+}
+
+@keyframes floatUp {
+  0% { transform: translateY(0) scale(0.5); opacity: 0; }
+  20% { opacity: 1; transform: scale(1.5); }
+  100% { transform: translateY(-120px) scale(1) rotate(15deg); opacity: 0; filter: blur(2px); }
+}

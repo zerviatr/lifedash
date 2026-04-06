@@ -7,8 +7,6 @@ const CurrencyPage = {
   lastUpdateTime: null,
 
   async render(container) {
-    container.innerHTML = Skeleton.card(4);
-
     container.innerHTML = `
       <div class="page-header">
         <div class="flex-between">
@@ -17,20 +15,20 @@ const CurrencyPage = {
             <p class="page-subtitle" id="currency-update-time">Yukleniyor...</p>
           </div>
           <button class="btn btn-primary btn-sm currency-refresh-btn" onclick="CurrencyPage.forceRefresh()">
-            <span class="refresh-icon">${icon('refresh-cw', 14)}</span> Yenile
+            <span class="refresh-icon">↻</span> Yenile
           </button>
         </div>
       </div>
 
       <div class="tab-bar">
-        <button class="tab-btn active" data-tab="fiat" onclick="CurrencyPage.switchTab('fiat')">${icon('arrow-left-right', 14)} Doviz</button>
+        <button class="tab-btn active" data-tab="fiat" onclick="CurrencyPage.switchTab('fiat')">💱 Doviz</button>
         <button class="tab-btn" data-tab="crypto" onclick="CurrencyPage.switchTab('crypto')">₿ Kripto</button>
-        <button class="tab-btn" data-tab="converter" onclick="CurrencyPage.switchTab('converter')">${icon('refresh-cw', 14)} Cevirici</button>
+        <button class="tab-btn" data-tab="converter" onclick="CurrencyPage.switchTab('converter')">🔄 Cevirici</button>
       </div>
 
       <div id="currency-content">
         <div class="empty-state">
-          <div class="empty-state-icon">${icon('arrow-left-right', 14)}</div>
+          <div class="empty-state-icon">💱</div>
           <div class="empty-state-text">Veriler yukleniyor...</div>
         </div>
       </div>
@@ -46,8 +44,6 @@ const CurrencyPage = {
     // Live counter update every 1s
     if (this.counterInterval) clearInterval(this.counterInterval);
     this.counterInterval = setInterval(() => this.updateCounter(), 1000);
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
   updateCounter() {
@@ -67,8 +63,8 @@ const CurrencyPage = {
   async refresh(forceRefresh = false) {
     try {
       const [ratesData, cryptoData] = await Promise.all([
-        api.currency.fetchRates(forceRefresh),
-        api.currency.fetchCrypto(forceRefresh)
+        api.finance.fetchCurrencyRates(forceRefresh),
+        api.finance.fetchCryptoRates(forceRefresh)
       ]);
 
       // Extract _cachedAt metadata and clean from rates object
@@ -86,8 +82,6 @@ const CurrencyPage = {
       // Re-render current tab
       const activeTab = document.querySelector('.tab-btn.active');
       if (activeTab) this.switchTab(activeTab.dataset.tab);
-
-      if (typeof lucide !== 'undefined') lucide.createIcons();
     } catch (e) {
       console.error('Currency refresh error:', e);
       Toast.show('Doviz verileri alinamadi. Internet baglantini kontrol et.', 'error');
@@ -96,11 +90,11 @@ const CurrencyPage = {
 
   async forceRefresh() {
     const btn = document.querySelector('.currency-refresh-btn');
-    const iconEl = btn ? btn.querySelector('.refresh-icon') : null;
-    if (iconEl) iconEl.classList.add('spin-icon');
+    const icon = btn ? btn.querySelector('.refresh-icon') : null;
+    if (icon) icon.classList.add('spin-icon');
     if (btn) btn.disabled = true;
     await this.refresh(true);
-    if (iconEl) iconEl.classList.remove('spin-icon');
+    if (icon) icon.classList.remove('spin-icon');
     if (btn) btn.disabled = false;
   },
 
@@ -150,8 +144,6 @@ const CurrencyPage = {
         }).join('')}
       </div>
     `;
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
   renderCrypto(container) {
@@ -194,7 +186,7 @@ const CurrencyPage = {
                   <td class="font-bold">${tryPrice.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ₺</td>
                   <td>
                     <span class="currency-change ${change >= 0 ? 'up' : 'down'}">
-                      ${change >= 0 ? icon('trending-up', 14) : icon('trending-down', 14)} ${Math.abs(change).toFixed(2)}%
+                      ${change >= 0 ? '▲' : '▼'} ${Math.abs(change).toFixed(2)}%
                     </span>
                   </td>
                   <td class="text-muted">$${(c.market_cap / 1e9).toFixed(1)}B</td>
@@ -205,8 +197,6 @@ const CurrencyPage = {
         </table>
       </div>
     `;
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
   renderConverter(container) {
@@ -251,8 +241,6 @@ const CurrencyPage = {
     `;
 
     this.convert();
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
   convert() {
@@ -318,7 +306,7 @@ const CurrencyPage = {
   },
 
   destroy() {
-    if (this.refreshInterval) { clearInterval(this.refreshInterval); this.refreshInterval = null; }
-    if (this.counterInterval) { clearInterval(this.counterInterval); this.counterInterval = null; }
+    if (this.refreshInterval) clearInterval(this.refreshInterval);
+    if (this.counterInterval) clearInterval(this.counterInterval);
   }
 };

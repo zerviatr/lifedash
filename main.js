@@ -8,6 +8,7 @@ const { autoUpdater } = require('electron-updater');
 
 // Suppress GPU shader disk cache errors on Windows
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+app.setAppUserModelId('LifeDash');
 
 let mainWindow;
 let tray;
@@ -44,6 +45,9 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    // Set icon explicitly to bypass Windows taskbar icon cache
+    const iconPath = path.join(app.getAppPath(), 'assets', 'icon.ico');
+    mainWindow.setIcon(iconPath);
   });
 
   // Fallback: if ready-to-show doesn't fire within 5s, force show
@@ -53,12 +57,10 @@ function createWindow() {
     }
   }, 5000);
 
-  // Minimize to tray instead of closing
-  mainWindow.on('close', (event) => {
-    if (!app.isQuitting) {
-      event.preventDefault();
-      mainWindow.hide();
-    }
+  // X butonu uygulamayı tamamen kapatır
+  mainWindow.on('close', () => {
+    app.isQuitting = true;
+    app.quit();
   });
 }
 
@@ -68,7 +70,9 @@ function createTray() {
   tray = new Tray(icon);
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'LifeDash Aç', click: () => mainWindow.show() },
+    { label: 'LifeDash', enabled: false },
+    { type: 'separator' },
+    { label: 'Uygulamayı Aç', click: () => mainWindow.show() },
     { label: 'Çıkış', click: () => { app.isQuitting = true; app.quit(); } }
   ]);
 
@@ -98,9 +102,89 @@ function fetchJSON(url) {
   });
 }
 
+function fetchJSONWithBody(url, token, body) {
+  return new Promise((resolve, reject) => {
+    const bodyBuf = Buffer.from(body, 'utf-8');
+    const options = {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Content-Length': bodyBuf.length
+      },
+      timeout: 30000
+    };
+    const req = https.request(url, options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          try {
+            const errBody = JSON.parse(data);
+            return reject(new Error(errBody?.error?.message || `HTTP ${res.statusCode}`));
+          } catch { return reject(new Error(`HTTP ${res.statusCode}`)); }
+        }
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(new Error('JSON parse error')); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    req.write(bodyBuf);
+    req.end();
+  });
+}
+
+function buildSystemPrompt(ctx) {
+  const trend = (ctx.monthlyTrend || []).map(m =>
+    `${m.label}: gelir ${m.income}₺, gider ${m.expense}₺, net ${m.net}₺`
+  ).join('\n');
+
+  const goals = (ctx.savingsGoals || []).map(g =>
+    `- ${g.name}: hedef ${g.target_amount}₺, biriken ${g.current_amount}₺`
+  ).join('\n');
+
+  const recentTx = (ctx.recentTransactions || []).slice(0, 20).map(t =>
+    `${t.date} | ${t.type === 'income' ? 'Gelir' : 'Gider'} | ${t.amount}₺ | ${t.category || ''} | ${t.description || ''}`
+  ).join('\n');
+
+  const budget = ctx.budget
+    ? `Aylık gelir hedefi: ${ctx.budget.total_income}₺, sabit giderler: ${ctx.budget.fixed_expenses}₺, tasarruf hedefi: ${ctx.budget.savings_goal}₺`
+    : 'Bütçe tanımlanmamış';
+
+  const today = ctx.todaySummary
+    ? `Bugün: ${ctx.todaySummary.todayExpense}₺ harcama, ${ctx.todaySummary.todayIncome}₺ gelir`
+    : '';
+
+  return `Sen LifeDash uygulamasının kişisel finans danışmanısın. Her zaman Türkçe yanıt ver. Kısa, net ve pratik öneriler sun.
+
+Kullanıcının finansal verileri:
+
+[AYLIK TREND - Son 6 Ay]
+${trend || 'Veri yok'}
+
+[BÜTÇE]
+${budget}
+
+[TASARRUF HEDEFLERİ]
+${goals || 'Hedef tanımlanmamış'}
+
+[SON İŞLEMLER]
+${recentTx || 'İşlem yok'}
+
+[BUGÜN]
+${today}
+
+Bu verilere dayanarak kullanıcının sorularını yanıtla. Gereksiz tekrar yapma, direkt faydalı bilgi ver.`;
+}
+
 // =================== SMART NOTIFICATIONS ===================
 function startNotificationSystem() {
   if (notificationInterval) clearInterval(notificationInterval);
+
+  let lastBudgetNotifHour = -1;
+  let lastTaskNotifHour = -1;
+  let lastDebtNotifDay = -1;
 
   notificationInterval = setInterval(async () => {
     try {
@@ -110,9 +194,11 @@ function startNotificationSystem() {
       const now = new Date();
       const hour = now.getHours();
       const minute = now.getMinutes();
+      const day = now.getDate();
 
-      // Daily reminder at 20:00 — check incomplete tasks
-      if (hour === 20 && minute === 0 && settings.daily_reminder === 'true') {
+      // Daily reminder at 20:00 — check incomplete tasks (sadece bir kez)
+      if (hour === 20 && minute === 0 && settings.daily_reminder === 'true' && lastTaskNotifHour !== hour) {
+        lastTaskNotifHour = hour;
         const tasks = db.getDailyTasks();
         const pending = tasks.filter(t => t.status === 'pending');
         if (pending.length > 0) {
@@ -120,16 +206,18 @@ function startNotificationSystem() {
         }
       }
 
-      // Budget limit check — every hour
-      if (minute === 0) {
+      // Budget limit check — saatte bir, tekrar etmeden
+      if (minute === 0 && hour !== lastBudgetNotifHour) {
+        lastBudgetNotifHour = hour;
         const limit = db.getDailyLimit();
-        if (limit.hasBudget && limit.todaySpent > limit.dailyLimit) {
+        if (limit && limit.hasBudget && limit.todaySpent > limit.dailyLimit) {
           showNotification('Bütçe Uyarısı!', `Bugünkü limitini ${(limit.todaySpent - limit.dailyLimit).toFixed(0)} ₺ aştın!`);
         }
       }
 
-      // Debt due date check — at 9:00
-      if (hour === 9 && minute === 0) {
+      // Debt due date check — at 9:00, günde bir kez
+      if (hour === 9 && minute === 0 && day !== lastDebtNotifDay) {
+        lastDebtNotifDay = day;
         const debts = db.getDebts();
         const today = new Date();
         debts.forEach(d => {
@@ -164,7 +252,7 @@ function setupIPC() {
   ipcMain.on('window-maximize', () => {
     mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
   });
-  ipcMain.on('window-close', () => mainWindow.hide());
+  ipcMain.on('window-close', () => { app.isQuitting = true; app.quit(); });
 
   // ============ DATABASE OPERATIONS ============
 
@@ -285,6 +373,14 @@ function setupIPC() {
   ipcMain.handle('db-get-subscriptions', () => db.getSubscriptions());
   ipcMain.handle('db-get-subscription-total', () => db.getSubscriptionTotal());
 
+  // Assets (Net Worth)
+  ipcMain.handle('db-get-assets', () => db.getAssets());
+  ipcMain.handle('db-add-asset', (_, data) => db.addAsset(data));
+  ipcMain.handle('db-update-asset', (_, id, data) => db.updateAsset(id, data));
+  ipcMain.handle('db-delete-asset', (_, id) => db.deleteAsset(id));
+  ipcMain.handle('db-get-net-worth', () => db.getNetWorth());
+  ipcMain.handle('db-get-expenses-by-category', (_, month) => db.getExpensesByCategory(month));
+
   ipcMain.handle('db-add-impulse', (_, data) => db.addImpulse(data));
   ipcMain.handle('db-get-impulses', () => db.getImpulses());
   ipcMain.handle('db-resolve-impulse', (_, id, confirm) => db.resolveImpulse(id, confirm));
@@ -358,6 +454,99 @@ function setupIPC() {
     }
   });
 
+  // AI Chat (Groq API)
+  ipcMain.handle('ai-chat', async (_, { message, history, context }) => {
+    const settings = db.getSettings();
+    const apiKey = (settings.groq_api_key || '').trim().replace(/[\r\n\t]/g, '');
+    if (!apiKey) return { error: 'API key eksik. Ayarlar sayfasından Groq API key ekle.' };
+
+    const systemPrompt = buildSystemPrompt(context || {});
+    const body = JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...(history || []),
+        { role: 'user', content: message }
+      ],
+      temperature: 0.7,
+      max_tokens: 1024
+    });
+
+    try {
+      const data = await fetchJSONWithBody(
+        'https://api.groq.com/openai/v1/chat/completions',
+        apiKey,
+        body
+      );
+      if (data.error) return { error: data.error.message || 'Groq API hatası' };
+      
+      const reply = data?.choices?.[0]?.message?.content;
+      if (!reply) return { error: 'Geçersiz API yanıtı alındı.' };
+      
+      return { reply };
+    } catch (e) {
+      return { error: e.message };
+    }
+  });
+
+  ipcMain.handle('ai-get-context', async () => {
+    try {
+      const stats = db.getUserStats();
+      return {
+        monthlyTrend: db.getMonthlyTrend(6),
+        budget: db.getBudget(),
+        recentTransactions: db.getTransactions({ limit: 50 }),
+        savingsGoals: db.getSavingsGoals(),
+        todaySummary: db.getTodaySummary(),
+        userLevel: stats ? stats.level : 1
+      };
+    } catch (e) {
+      return {};
+    }
+  });
+
+  // Dynamic Quests (Dungeon Master)
+  ipcMain.handle('ai-generate-quest', async (_, context) => {
+    const settings = db.getSettings();
+    const apiKey = (settings.groq_api_key || '').trim().replace(/[\r\n\t]/g, '');
+    if (!apiKey) return { error: 'API key eksik. Ayarlar sayfasından Groq API key ekle.' };
+
+    const systemPrompt = `Sen RPG stilinde acımasız ama adil bir yapay zeka oyun yöneticisisin (AI Dungeon Master). Kullanıcının finansal veya görev durumunu inceleyip, ona gerçek dünyada uygulayabileceği epik, aksiyon dolu ve oyunsallaştırılmış DİNAMİK BİR GÖREV üreteceksin.
+Mevcut Kullanıcı Durumu: ${JSON.stringify(context, null, 2)}
+LÜTFEN SADECE VE SADECE aşağıdaki yapıda bir JSON objesi döndür, başka hiçbir ek yazı yazma:
+{"title": "Kısa ve Epik Görev Adı", "description": "Görevin sürükleyici hikayesi ve yapılması gereken net görev", "reward_xp": (20 ile 300 arası sayı), "reward_coins": (5 ile 50 arası sayı)}`;
+
+    const body = JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: systemPrompt }],
+      temperature: 0.7,
+      max_tokens: 500
+    });
+
+    try {
+      const data = await fetchJSONWithBody('https://api.groq.com/openai/v1/chat/completions', apiKey, body);
+      if (data.error) return { error: data.error.message || 'Groq API hatası' };
+      
+      const reply = data?.choices?.[0]?.message?.content;
+      if (!reply) return { error: 'Geçersiz API yanıtı alındı.' };
+      
+      try {
+        const match = reply.match(/\{[\s\S]*\}/);
+        const questJson = JSON.parse(match[0]);
+        if (!questJson.title || !questJson.description) throw new Error('Geçersiz format');
+        return { quest: questJson };
+      } catch(parseError) {
+        return { error: 'Yapay zeka geçersiz formatta yanıt verdi.' };
+      }
+    } catch (e) {
+      return { error: e.message };
+    }
+  });
+
+  ipcMain.handle('db-get-active-dynamic-quests', () => db.getActiveDynamicQuests());
+  ipcMain.handle('db-add-dynamic-quest', (_, data) => db.addDynamicQuest(data));
+  ipcMain.handle('db-complete-dynamic-quest', (_, id) => db.completeDynamicQuest(id));
+
   // Update check
   ipcMain.handle('check-for-updates', async () => {
     if (!app.isPackaged) return { status: 'dev-mode' };
@@ -365,7 +554,7 @@ function setupIPC() {
     catch (e) { return { status: 'error', message: e.message }; }
   });
   ipcMain.handle('install-update', () => {
-    autoUpdater.quitAndInstall(false, true);
+    autoUpdater.quitAndInstall(true, true); // silent=true, forceRunAfter=true
   });
   ipcMain.handle('get-app-version', () => app.getVersion());
 
@@ -486,6 +675,7 @@ function setupAutoUpdater() {
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowPrerelease = false;
 
   autoUpdater.on('checking-for-update', () => {
     mainWindow?.webContents.send('update-status', { status: 'checking' });

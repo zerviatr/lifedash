@@ -1,0 +1,7 @@
+node_modules
+
+dist/
+dist-pack/
+
+lifedash/dist/
+lifedash/dist-pack/

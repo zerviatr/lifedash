@@ -1,0 +1,175 @@
+/* ============ TUTORIAL / ONBOARDING ============ */
+
+/* Spotlight — single div with massive box-shadow to darken the rest */
+.tutorial-spotlight {
+  position: fixed;
+  z-index: 9998;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.78);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.tutorial-spotlight.pulse {
+  animation: tutorialPulse 2s ease-in-out infinite;
+}
+
+@keyframes tutorialPulse {
+  0%, 100% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.78), 0 0 0 0 rgba(139, 92, 246, 0); }
+  50%      { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.78), 0 0 20px 6px rgba(139, 92, 246, 0.4); }
+}
+
+/* Full-screen overlay for welcome/center steps (no spotlight target) */
+.tutorial-overlay-full {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Tooltip Balloon */
+.tutorial-tooltip {
+  position: fixed;
+  z-index: 9999;
+  width: 380px;
+  max-width: 90vw;
+  background: rgba(22, 22, 50, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  border-radius: 16px;
+  padding: 24px;
+  color: #e2e8f0;
+  animation: tutorialTooltipIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes tutorialTooltipIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.tutorial-tooltip-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: #a78bfa;
+}
+
+.tutorial-tooltip-text {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #cbd5e1;
+  margin-bottom: 20px;
+}
+
+/* Action row */
+.tutorial-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tutorial-actions .btn-group {
+  display: flex;
+  gap: 8px;
+}
+
+.tutorial-btn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tutorial-btn-next {
+  background: linear-gradient(135deg, #7c3aed, #6366f1);
+  color: #fff;
+}
+.tutorial-btn-next:hover {
+  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  transform: translateY(-1px);
+}
+
+.tutorial-btn-prev {
+  background: rgba(255, 255, 255, 0.08);
+  color: #a5b4fc;
+  border: 1px solid rgba(139, 92, 246, 0.25);
+}
+.tutorial-btn-prev:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.tutorial-btn-skip {
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+.tutorial-btn-skip:hover {
+  color: #94a3b8;
+}
+
+/* Step counter */
+.tutorial-step-counter {
+  font-size: 12px;
+  color: #64748b;
+  text-align: center;
+  margin-top: 12px;
+}
+
+/* Progress dots */
+.tutorial-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.tutorial-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  transition: all 0.3s;
+}
+
+.tutorial-dot.active {
+  background: #7c3aed;
+  transform: scale(1.3);
+}
+
+.tutorial-dot.done {
+  background: #a78bfa;
+}
+
+/* Center mode for welcome step */
+.tutorial-tooltip.center {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: tutorialCenterIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes tutorialCenterIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Welcome icon */
+.tutorial-welcome-icon {
+  font-size: 48px;
+  text-align: center;
+  margin-bottom: 16px;
+  animation: tutorialBounce 1s ease-in-out infinite alternate;
+}
+
+@keyframes tutorialBounce {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-8px); }
+}
