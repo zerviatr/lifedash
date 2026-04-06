@@ -54,43 +54,62 @@ const CurrencyPage = {
     const timeEl = document.getElementById('currency-update-time');
     if (!timeEl || !this.lastUpdateTime) return;
     const seconds = Math.floor((Date.now() - this.lastUpdateTime) / 1000);
-    if (seconds < 5) {
-      timeEl.textContent = 'Az once guncellendi';
-    } else if (seconds < 60) {
-      timeEl.textContent = `${seconds} saniye once guncellendi`;
-    } else {
-      const mins = Math.floor(seconds / 60);
-      timeEl.textContent = `${mins} dakika once guncellendi`;
-    }
+    let label;
+    if (seconds < 5)       label = 'Az once guncellendi';
+    else if (seconds < 60) label = `${seconds} saniye once guncellendi`;
+    else                   label = `${Math.floor(seconds / 60)} dakika once guncellendi`;
+    if (this.isStale) label += ' ⚠ (eski veri)';
+    timeEl.textContent = label;
   },
 
-  async refresh(forceRefresh = false) {
+  async refresh(forceRefresh = false, _retryCount = 0) {
     try {
       const [ratesData, cryptoData] = await Promise.all([
         api.currency.fetchRates(forceRefresh),
         api.currency.fetchCrypto(forceRefresh)
       ]);
 
-      // Extract _cachedAt metadata and clean from rates object
+      // Extract _cachedAt/_stale metadata
       let cachedAt = null;
+      let isStale = false;
       if (ratesData && ratesData._cachedAt) {
         cachedAt = ratesData._cachedAt;
-        this.rates = Object.fromEntries(Object.entries(ratesData).filter(([k]) => k !== '_cachedAt'));
+        isStale  = !!ratesData._stale;
+        this.rates = Object.fromEntries(
+          Object.entries(ratesData).filter(([k]) => !k.startsWith('_'))
+        );
       } else {
         this.rates = ratesData;
       }
-      this.crypto = cryptoData;
+      this.crypto = (Array.isArray(cryptoData) && cryptoData.length > 0) ? cryptoData : null;
       this.lastUpdateTime = cachedAt || Date.now();
+      this.isStale = isStale;
       this.updateCounter();
 
       // Re-render current tab
       const activeTab = document.querySelector('.tab-btn.active');
       if (activeTab) this.switchTab(activeTab.dataset.tab);
-
       if (typeof lucide !== 'undefined') lucide.createIcons();
+
+      // If both failed and we haven't retried yet, retry once after 3s
+      if (!this.rates && !this.crypto && _retryCount === 0) {
+        console.warn('[CurrencyPage] No data received. Auto-retrying in 3s...');
+        const timeEl = document.getElementById('currency-update-time');
+        if (timeEl) timeEl.textContent = 'Veri alinamadi. 3 saniye sonra tekrar deneniyor...';
+        setTimeout(() => this.refresh(true, 1), 3000);
+      }
     } catch (e) {
       console.error('Currency refresh error:', e);
-      Toast.show('Doviz verileri alinamadi. Internet baglantini kontrol et.', 'error');
+      const content = document.getElementById('currency-content');
+      if (content && !this.rates && !this.crypto) {
+        content.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📡</div>
+            <div class="empty-state-text">Veri su an alinamıyor.</div>
+            <div class="text-sm text-muted" style="margin-top:8px;">${e.message || 'Internet baglantini kontrol et.'}</div>
+            <button class="btn btn-primary btn-sm" style="margin-top:16px;" onclick="CurrencyPage.forceRefresh()">Tekrar Dene</button>
+          </div>`;
+      }
     }
   },
 
@@ -118,7 +137,13 @@ const CurrencyPage = {
 
   renderFiat(container) {
     if (!this.rates) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">Doviz kurlari yukleniyor...</div></div>';
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">📡</div>
+          <div class="empty-state-text">Doviz kurlari su an alinamıyor.</div>
+          <div class="text-sm text-muted" style="margin-top:8px;">Lutfen internet baglantinizi kontrol edin veya yenileyin.</div>
+          <button class="btn btn-primary btn-sm" style="margin-top:16px;" onclick="CurrencyPage.forceRefresh()">Tekrar Dene</button>
+        </div>`;
       return;
     }
 
@@ -135,7 +160,12 @@ const CurrencyPage = {
       { code: 'RUB', name: 'Rus Rublesi', flag: '🇷🇺' },
     ];
 
+    const staleWarning = this.isStale
+      ? `<div style="background:rgba(245,158,11,0.1);border:1px solid var(--warning);border-radius:8px;padding:8px 14px;margin-bottom:16px;font-size:13px;color:var(--warning);">⚠ Bu kurlar önbellekten alınıyor — canlı API şu an erişilemiyor.</div>`
+      : '';
+
     container.innerHTML = `
+      ${staleWarning}
       <div class="currency-grid">
         ${currencies.map(c => {
           const rate = this.rates[c.code];
@@ -156,7 +186,13 @@ const CurrencyPage = {
 
   renderCrypto(container) {
     if (!this.crypto || this.crypto.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">₿</div><div class="empty-state-text">Kripto verileri yukleniyor...</div></div>';
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">₿</div>
+          <div class="empty-state-text">Kripto verileri su an alinamıyor.</div>
+          <div class="text-sm text-muted" style="margin-top:8px;">CoinGecko veya CoinCap API'sine erisilemedi. Biraz bekleyip tekrar deneyin.</div>
+          <button class="btn btn-primary btn-sm" style="margin-top:16px;" onclick="CurrencyPage.forceRefresh()">Tekrar Dene</button>
+        </div>`;
       return;
     }
 
@@ -176,8 +212,8 @@ const CurrencyPage = {
           <tbody>
             ${this.crypto.map((c, i) => {
               const change = c.price_change_percentage_24h || 0;
-              const tryRate = this.rates && this.rates['USD'] ? this.rates['USD'] : 1;
-              const tryPrice = c.current_price * tryRate;
+              const tryRate = this.rates && this.rates['USD'] ? this.rates['USD'] : 0;
+              const tryPrice = tryRate > 0 ? c.current_price * tryRate : null;
               return `
                 <tr>
                   <td>${i + 1}</td>
@@ -191,7 +227,7 @@ const CurrencyPage = {
                     </div>
                   </td>
                   <td class="font-bold">$${c.current_price.toLocaleString('en-US', { maximumFractionDigits: 2 })}</td>
-                  <td class="font-bold">${tryPrice.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ₺</td>
+                  <td class="font-bold">${tryPrice ? tryPrice.toLocaleString('tr-TR', { maximumFractionDigits: 2 }) + ' ₺' : '<span class="text-muted">—</span>'}</td>
                   <td>
                     <span class="currency-change ${change >= 0 ? 'up' : 'down'}">
                       ${change >= 0 ? icon('trending-up', 14) : icon('trending-down', 14)} ${Math.abs(change).toFixed(2)}%

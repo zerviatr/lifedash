@@ -623,49 +623,163 @@ LÜTFEN SADECE VE SADECE aşağıdaki yapıda bir JSON objesi döndür, başka h
     } catch { return false; }
   });
 
-  // ============ CURRENCY & CRYPTO API (with caching) ============
+  // ============ CURRENCY & CRYPTO API (with caching + fallback) ============
   let currencyCache = { data: null, timestamp: 0 };
-  let cryptoCache = { data: null, timestamp: 0 };
+  let cryptoCache   = { data: null, timestamp: 0 };
   const CURRENCY_TTL = 5 * 60 * 1000;  // 5 min
-  const CRYPTO_TTL = 1 * 60 * 1000;    // 1 min
+  const CRYPTO_TTL   = 2 * 60 * 1000;  // 2 min
+
+  // Currency sources — tried in order until one succeeds
+  const CURRENCY_SOURCES = [
+    {
+      name: 'exchangerate.host (TRY base)',
+      url: 'https://api.exchangerate.host/latest?base=TRY&symbols=USD,EUR,GBP,JPY,CHF,CAD,AUD,SAR,CNY,RUB,DKK,SEK,NOK,SGD,HKD,AED,KWD,QAR',
+      parse: (d) => {
+        if (!d || !d.rates) return null;
+        const out = {};
+        for (const [k, v] of Object.entries(d.rates)) {
+          if (v > 0) out[k] = 1 / v;
+        }
+        out['TRY'] = 1;
+        return out;
+      }
+    },
+    {
+      name: 'open.er-api.com (TRY base)',
+      url: 'https://open.er-api.com/v6/latest/TRY',
+      parse: (d) => {
+        if (!d || !d.rates) return null;
+        const out = {};
+        for (const [k, v] of Object.entries(d.rates)) {
+          if (v > 0) out[k] = 1 / v;
+        }
+        return out;
+      }
+    },
+    {
+      name: 'freeforexapi.com (EUR base)',
+      url: 'https://freeforexapi.com/api/live?pairs=EURTRY,USDTRY,GBPTRY,JPYTRY,CHFTRY',
+      parse: (d) => {
+        if (!d || !d.rates) return null;
+        const out = {};
+        for (const [pair, obj] of Object.entries(d.rates)) {
+          // pair = "USDTRY", rate = TRY per 1 unit of foreign
+          const code = pair.slice(0,3);
+          if (obj && obj.rate > 0) out[code] = obj.rate;
+        }
+        return Object.keys(out).length > 0 ? out : null;
+      }
+    }
+  ];
 
   ipcMain.handle('fetch-currency-rates', async (_, forceRefresh = false) => {
     const now = Date.now();
+
+    // Serve cache if fresh
     if (!forceRefresh && currencyCache.data && now - currencyCache.timestamp < CURRENCY_TTL) {
+      console.log(`[Currency] Serving cache (${Math.round((now - currencyCache.timestamp)/1000)}s old)`);
       return { ...currencyCache.data, _cachedAt: currencyCache.timestamp };
     }
-    try {
-      const data = await fetchJSON('https://open.er-api.com/v6/latest/TRY');
-      if (data && data.rates) {
-        const result = {};
-        for (const [code, rate] of Object.entries(data.rates)) {
-          if (rate > 0) result[code] = 1 / rate;
+
+    // Try each source in order
+    for (const source of CURRENCY_SOURCES) {
+      const t0 = Date.now();
+      try {
+        console.log(`[Currency] Trying: ${source.name} ...`);
+        const raw = await fetchJSON(source.url);
+        const parsed = source.parse(raw);
+        const elapsed = Date.now() - t0;
+
+        if (parsed && Object.keys(parsed).length >= 3) {
+          console.log(`[Currency] ✓ ${source.name} — ${Object.keys(parsed).length} currencies in ${elapsed}ms`);
+          currencyCache = { data: parsed, timestamp: now };
+          return { ...parsed, _cachedAt: now };
+        } else {
+          console.warn(`[Currency] ✗ ${source.name} — empty/invalid response in ${elapsed}ms`);
         }
-        currencyCache = { data: result, timestamp: now };
-        return { ...result, _cachedAt: now };
+      } catch (e) {
+        const elapsed = Date.now() - t0;
+        console.error(`[Currency] ✗ ${source.name} — ${e.message} (${elapsed}ms)`);
       }
-      return currencyCache.data ? { ...currencyCache.data, _cachedAt: currencyCache.timestamp } : null;
-    } catch (e) {
-      console.error('Currency API error:', e);
-      return currencyCache.data ? { ...currencyCache.data, _cachedAt: currencyCache.timestamp } : null;
     }
+
+    // All sources failed — return stale cache if available
+    if (currencyCache.data) {
+      const age = Math.round((now - currencyCache.timestamp) / 1000);
+      console.warn(`[Currency] All sources failed. Using stale cache (${age}s old).`);
+      return { ...currencyCache.data, _cachedAt: currencyCache.timestamp, _stale: true };
+    }
+
+    console.error('[Currency] All sources failed and no cache available.');
+    return null;
   });
+
+  // Crypto sources — tried in order
+  const CRYPTO_SOURCES = [
+    {
+      name: 'CoinGecko /markets (free)',
+      url: 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=15&page=1&sparkline=false&locale=en',
+      parse: (d) => Array.isArray(d) && d.length > 0 ? d : null
+    },
+    {
+      name: 'CoinCap /assets',
+      url: 'https://api.coincap.io/v2/assets?limit=15',
+      parse: (d) => {
+        if (!d || !d.data || !d.data.length) return null;
+        // Normalize to CoinGecko format
+        return d.data.map(c => ({
+          id: c.id,
+          name: c.name,
+          symbol: c.symbol.toLowerCase(),
+          current_price: parseFloat(c.priceUsd) || 0,
+          price_change_percentage_24h: parseFloat(c.changePercent24Hr) || 0,
+          market_cap: parseFloat(c.marketCapUsd) || 0,
+          image: `https://assets.coincap.io/assets/icons/${c.symbol.toLowerCase()}@2x.png`,
+          _source: 'coincap'
+        }));
+      }
+    }
+  ];
 
   ipcMain.handle('fetch-crypto-rates', async (_, forceRefresh = false) => {
     const now = Date.now();
+
     if (!forceRefresh && cryptoCache.data && now - cryptoCache.timestamp < CRYPTO_TTL) {
+      console.log(`[Crypto] Serving cache (${Math.round((now - cryptoCache.timestamp)/1000)}s old)`);
       return cryptoCache.data;
     }
-    try {
-      const data = await fetchJSON('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=15&page=1&sparkline=false');
-      if (data && data.length) {
-        cryptoCache = { data, timestamp: now };
+
+    for (const source of CRYPTO_SOURCES) {
+      const t0 = Date.now();
+      try {
+        console.log(`[Crypto] Trying: ${source.name} ...`);
+        const raw = await fetchJSON(source.url);
+        const parsed = source.parse(raw);
+        const elapsed = Date.now() - t0;
+
+        if (parsed && parsed.length > 0) {
+          console.log(`[Crypto] ✓ ${source.name} — ${parsed.length} coins in ${elapsed}ms`);
+          cryptoCache = { data: parsed, timestamp: now };
+          return parsed;
+        } else {
+          console.warn(`[Crypto] ✗ ${source.name} — empty/invalid in ${elapsed}ms`);
+        }
+      } catch (e) {
+        const elapsed = Date.now() - t0;
+        const isRateLimit = e.message && e.message.includes('429');
+        console.error(`[Crypto] ✗ ${source.name} — ${isRateLimit ? 'RATE LIMITED (429)' : e.message} (${elapsed}ms)`);
       }
-      return data || cryptoCache.data || [];
-    } catch (e) {
-      console.error('Crypto API error:', e);
-      return cryptoCache.data || [];
     }
+
+    // All sources failed — return stale cache if available
+    if (cryptoCache.data) {
+      const age = Math.round((now - cryptoCache.timestamp) / 1000);
+      console.warn(`[Crypto] All sources failed. Using stale cache (${age}s old).`);
+      return cryptoCache.data;
+    }
+
+    console.error('[Crypto] All sources failed and no cache available.');
+    return [];
   });
 
 }
